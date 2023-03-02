@@ -176,6 +176,8 @@ def convert_to_3d():
 
                 cmeta.write( struct.pack( '1B', sound_bank ) )
 
+                cmeta.close()
+
                 shutil.copy( './tmp/' + seq_file.replace( '.seq', '.cmeta' ), './Converted/' + root )
 
     print( "%d failed" % failure_count )
