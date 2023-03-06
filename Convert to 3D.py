@@ -97,12 +97,14 @@ def convert_to_3d():
                 print( e.output )
 
             # Skip if already processed
-            if not os.path.exists( './tmp/"' + seq_file.replace( '.seq', '.bcseq' ) + '"' ) :
+            if not os.path.exists( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) ) :
+
+                os.makedirs( './tmp/' + root, exist_ok=True )
 
                 try:
 
                     seq_to_midi = subprocess.run(
-                        './seq64_console.exe --abi=4b --in="./' + root + '/' + seq_file + '" --out=./tmp/"' + seq_file.replace( '.seq', '.mid' ) + '"',
+                        './seq64_console.exe --abi=4b --in="./' + root + '/' + seq_file + '" --out="./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '"',
                         check=True,
                         text=True,
                         capture_output=True
@@ -118,14 +120,14 @@ def convert_to_3d():
                 try:
 
                     midi_to_sseq = subprocess.run(
-                        './midi2sseq.exe ./tmp/"' + seq_file.replace( '.seq', '.mid' ) + '" ./tmp/"' + seq_file.replace( '.seq', '.sseq' ) + '"',
+                        './midi2sseq.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '"',
                         check=True,
                         text=True,
                         capture_output=True
                     )
 
                 except Exception as e:
-                    print( '.tmp/' + seq_file )
+                    print( '.tmp/' + root + '/' + seq_file )
                     print( 'midi_to_sseq failure' )
                     print( e.output )
                     failure_count = failure_count + 1
@@ -135,14 +137,14 @@ def convert_to_3d():
 
                     # We change the extension during this command to skip a step
                     sseq_to_cseq = subprocess.run(
-                        './SequenceConvert.exe ./tmp/"' + seq_file.replace( '.seq', '.sseq' ) + '" ./tmp/"' + seq_file.replace( '.seq', '.cseq' ) + '"',
+                        './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '"',
                         check=True,
                         text=True,
                         capture_output=True
                     )
 
                 except Exception as e:
-                    print( '.tmp/' + seq_file )
+                    print( '.tmp/' + root + '/' + seq_file )
                     print( 'sseq_to_cseq failure' )
                     print( e.output )
                     failure_count = failure_count + 1
@@ -151,14 +153,14 @@ def convert_to_3d():
                 try:
 
                     cseq_to_bcseq = subprocess.run(
-                        './SequenceConvert.exe ./tmp/"' + seq_file.replace( '.seq', '.cseq' ) + '" "./tmp/' + seq_file.replace( '.seq', '.bcseq' ) + '"',
+                        './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) + '"',
                         check=True,
                         text=True,
                         capture_output=True
                     )
 
                 except Exception as e:
-                    print( '.tmp/' + seq_file )
+                    print( '.tmp/' + root + '/' + seq_file )
                     print( 'cseq_to_bcseq failure' )
                     print( e.output )
                     failure_count = failure_count + 1
@@ -166,19 +168,19 @@ def convert_to_3d():
 
             os.makedirs( './Converted/' + root, exist_ok=True )
 
-            shutil.copy( './tmp/' + seq_file.replace( '.seq', '.bcseq' ), './Converted/' + root )
+            shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ), './Converted/' + root )
 
             sound_bank = instrument_set_lookup.get( instrument_set )
 
             if sound_bank:
 
-                cmeta = open( './tmp/' + seq_file.replace( '.seq', '.cmeta' ), 'wb' )
+                cmeta = open( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), 'wb' )
 
                 cmeta.write( struct.pack( '1B', sound_bank ) )
 
                 cmeta.close()
 
-                shutil.copy( './tmp/' + seq_file.replace( '.seq', '.cmeta' ), './Converted/' + root )
+                shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), './Converted/' + root )
 
     print( "%d failed" % failure_count )
 
