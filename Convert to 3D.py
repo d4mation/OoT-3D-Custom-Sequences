@@ -41,6 +41,521 @@ instrument_set_lookup = {
     '0x24': 40, # BANK_FUKUROU
 }
 
+"""
+The N64 has a lot of empty Instrument indices, whereas the 3DS appears to just "collapse" those empty indices.
+
+This List helps convert between them a bit more simply
+
+This was created using https://sites.google.com/site/deathbasketslair/zelda/ocarina-of-time/instrument-lists as a reference
+"""
+
+# Loop through regex match of prg (\d), convert to Hex, match against lookup for correct index
+instrument_list_lookup = {
+
+    # Hyrule Field
+    '0x03': {
+        '0x00': 0, # Flute
+        '0x01': 1, # Oboe
+        '0x02': 2, # Clarinet
+        '0x03': 3, # Bassoon
+        '0x04': 4, # Horn
+        '0x05': 5, # Trumpet
+        '0x06': 6, # Trumpet
+        '0x07': 7, # Tuba
+        '0x08': 8, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 9, # Strings
+        '0x0B': 10, # Strings
+        '0x0C': 11, # Pizzicato Strings
+        '0x0D': 12, # Piano
+        '0x0E': 13, # Harp
+        '0x0F': 14 # Xylophone
+    },
+
+    # Deku Tree
+    '0x04': {
+        '0x00': 0, # Pad
+        '0x01': 1, # Pad
+    },
+
+    # Market
+    '0x05': {
+        '0x00': 0, # Koto
+        '0x01': 1, # Ocarina
+        '0x02': 2, # Bassoon
+        '0x03': 3, # Oboe
+        '0x04': False, # Empty
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': False, # Empty
+        '0x0B': False, # Empty
+        '0x0C': 4, # Pizzacato Strings
+    },
+
+    # Title Screen
+    '0x06': {
+        '0x00': False, # Empty,
+        '0x01': 0, # Ocarina
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 1, # Strings
+        '0x0B': 2, # Strings
+        '0x0C': False, # Empty
+        '0x0D': 3, # Piano
+        '0x0E': 4, # Piano
+    },
+
+    # Jabu Jabu's Belly
+    '0x07': {
+        '0x00': 0, # Wind,
+        '0x01': False, # Empty
+        '0x02': 1, # Synth Strings
+        '0x03': 2, # Creeking
+        '0x04': 3, # Creeking 
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+    },
+
+    # Kakariko Village (guitar)
+    '0x08': {
+        '0x00': 0, # Harmonica
+        '0x01': 1, # Guitar
+        '0x02': 2, # Guitar
+        '0x03': 3, # Ocarina
+        '0x04': 4, # Glockenspiel
+        '0x05': 5, # Accordion
+        '0x06': 6, # Accordion
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+    },
+
+    # Fairy Fountain
+    '0x09': {
+        '0x00': 0, # Harp
+        '0x01': 1, # Harp
+        '0x02': 2, # Harp
+        '0x03': 3, # Harp
+        '0x04': 4, # Strings
+        '0x05': 5, # Ocarina
+        '0x06': 6, # Choir
+        '0x07': 7, # Choir
+        '0x08': 8, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 9, # Strings
+        '0x0B': 10, # Strings
+        '0x0C': 11, # Pizzacato Strings
+    },
+
+    # Fire Temple
+    '0x0A': {
+        '0x00': 0, # Islamic Chant (1.0 only?)
+        '0x01': 1, # Islamic Chant (1.0 only?)
+        '0x02': 2, # Islamic Chant (1.0 only?)
+        '0x03': 3, # Xylophone
+        '0x04': False, # Empty
+        '0x05': 4, # Wind,
+        '0x06': 5, # Cymbol
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 6, # Choir (Other versions only?)
+        '0x0B': 7, # Choir (Other versions only?)
+        '0x0C': 8, # Choir (Other versions only?)
+        '0x0D': 9, # Choir (Other versions only?)
+    },
+
+    # Dodongo's Cavern
+    '0x0B': {
+        '0x00': 0, # Wind
+        '0x01': 1, # Sounds 1
+        '0x02': 2, # Sounds 2
+        '0x03': 3, # Sounds 3
+    },
+
+    # Forest Temple
+    '0x0C': {
+        '0x00': 0, # Pad
+        '0x01': 1, # Voice thing
+        '0x02': 2, # Wood chime
+    },
+    
+    # Lon Lon Ranch
+    '0x0D': {
+        '0x00': 0, # Malon Voice
+        '0x01': 1, # Malon Voice
+        '0x02': 2, # Electric Guitar
+        '0x03': 3, # Electric Guitar (high)
+        '0x04': 4, # Electric Guitar (high)
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': False, # Empty
+        '0x0B': 5, # Strings
+        '0x0C': 6, # Strings
+        '0x0D': 7, # Violin
+        '0x0E': 8, # Violin
+        '0x0F': 9, # Bell
+    },
+
+    # Goron City
+    '0x0E': {
+        '0x00': 0, # Drum
+        '0x01': 1, # Clap
+        '0x02': 2, # This is labeled as "lolwut". I assume this is an instrument and not an empty space?
+        '0x03': 3, # Xylophone
+        '0x04': 4, # Xylophone
+    },
+
+    # Kokiri Forest
+    '0x0F': {
+        '0x00': 0, # Flute
+        '0x01': 1, # Oboe
+        '0x02': 2, # Clarinet
+        '0x03': 3, # Bassoon
+        '0x04': 4, # Horn
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': 5, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 6, # Strings
+        '0x0B': 7, # Strings
+        '0x0C': 8, # Pizzacato Strings
+        '0x0D': 9, # Harspichord
+        '0x0E': 10, # Harp
+        '0x0F': 11, # Xylophone
+    },
+
+    # Spirit Temple
+    '0x10': {
+        '0x00': 0, # Voice pad
+        '0x01': 1, # Synth
+        '0x02': 2, # Egyptian flute
+        '0x03': 3, # Clap
+        '0x04': 4, # Synth
+        '0x05': 5, # Egyptian flute
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+    },
+    
+    # Horse Race
+    '0x11': {
+        '0x00': 0, # Banjo
+        '0x01': 1, # Banjo
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': 2, # Bass guitar
+        '0x06': 3, # Harmonica
+        '0x07': 4, # Guitar
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': False, # Empty
+        '0x0B': False, # Empty
+        '0x0C': False, # Empty
+        '0x0D': 5, # Violin
+        '0x0E': 6, # Violin
+    },
+
+    # Warp Songs
+    '0x12': {
+        '0x00': 0, # Harp
+        '0x01': 1, # Harp
+        '0x02': 2, # Harp
+        '0x03': 3, # Harp
+        '0x04': 4, # Strings
+        '0x05': 5, # Ocarina
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': 6, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 7, # Strings
+        '0x0B': 8, # Strings
+        '0x0C': 9, # Pizzacato Strings
+    },
+
+    # Goddess Cutscene
+    '0x13': {
+        '0x00': 0, # Choir
+        '0x01': 1, # Choir
+        '0x02': 2, # Choir
+        '0x03': 3, # Glockenspiel
+    },
+
+    # Shooting Gallery
+    '0x14': {
+        '0x00': 0, # Flute
+        '0x01': 1, # Clarinet
+        '0x02': 2, # Clarinet
+        '0x03': 3, # Accordion
+        '0x04': 4, # Glockenspiel
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+    },
+    
+    # Zora's Domain
+    '0x15': {
+        '0x00': 0, # Steel Drum
+        '0x01': 1, # Voice Pad
+        '0x02': 2, # Guitar
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+    },
+
+    # Shop
+    '0x16': {
+        '0x00': 0, # Guitar
+        '0x01': 1, # Accordion
+        '0x02': 2, # Bass guitar
+        '0x03': 3, # Trumpet
+        '0x04': 4, # Trumpet (high)
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 5, # Drum
+    },
+
+    # Ice Cavern
+    '0x17': {
+        '0x00': 0, # Bell Pad
+        '0x01': 1, # Bell Pad
+        '0x02': 2, # Wind
+        '0x03': 3, # Bell Pad
+    },
+
+    # Shadow Temple
+    '0x18': {
+        '0x00': 0, # Drum
+        '0x01': 1, # Wind
+        '0x02': 2, # Sounds 1
+        '0x03': 3, # Choir
+        '0x04': 4, # Choir (high)
+        '0x05': False, # Empty
+        '0x06': 5, # Islamic chant
+        '0x07': 6, # Sounds 2
+        '0x08': 7, # Harpsichord
+    },
+
+    # Water Temple
+    '0x19': {
+        '0x00': 0, # Flute
+        '0x01': 1, # Wind chime
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': 2, # Bell pad
+        '0x05': 3, # Wood chime
+        '0x06': 4, # Voice pad
+        '0x07': 5, # Koto
+    },
+
+    # Unused
+    '0x1A': {
+        '0x00': False, # Empty
+        '0x01': False, # Empty
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': False, # Empty
+        '0x0B': False, # Empty
+        '0x0C': False, # Empty
+        '0x0D': 0, # Piano
+        '0x0E': 1, # Piano
+    },
+
+    # Gerudo Valley
+    '0x1B': {
+        '0x00': 0, # Trumpet
+        '0x01': 1, # Trumpet (low)
+        '0x02': 2, # Guitar
+        '0x03': 3, # Guitar
+        '0x04': False, # Empty
+        '0x05': 4, # Bass guitar
+        '0x06': False, # Empty
+        '0x07': 5, # Guitar
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 6, # Clap
+        '0x0B': 7, # Clap
+    },
+
+    # Lakeside Laboratory
+    '0x1C': {
+        '0x00': 0, # Koto
+        '0x01': 1, # Drum
+        '0x02': False, # Empty
+        '0x03': 2, # Drum 2
+        '0x04': 3, # Wind chime
+    },
+
+    # Kotake and Koume
+    '0x1D': {
+        '0x00': 0, # Koto
+        '0x01': 1, # Drum
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': 2, # Flute
+        '0x06': False, # Empty
+        '0x07': 3, # Flute
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 4, # Strings
+        '0x0B': 5, # Strings
+    },
+
+    # Ganon's Castle (Organ)
+    '0x1E': {
+        '0x00': 0, # Organ
+        '0x01': 1, # Organ
+        '0x02': 2, # Organ
+        '0x03': False, # Empty
+        '0x04': 3, # Horn
+    },
+
+    # Inside Ganon's Castle
+    '0x1F': {
+        '0x00': False, # Empty
+        '0x01': 0, # Wind
+        '0x02': 1, # Sounds 1
+        '0x03': 2, # Choir
+        '0x04': 3, # Piano
+        '0x05': 4, # Piano
+        '0x06': False, # Empty
+        '0x07': 5, # Sounds 2
+    },
+
+    # Ganondorf Battle
+    '0x20': {
+        '0x00': 0, # Flute
+        '0x01': 1, # Choir
+        '0x02': 2, # Choir (low)
+        '0x03': False, # Empty
+        '0x04': 3, # Horn
+        '0x05': 4, # Trumpet
+        '0x06': 5, # Trumpet (low)
+        '0x07': 6, # Tuba
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 7, # Strings
+        '0x0B': 8, # Strings
+        '0x0C': False, # Empty
+        '0x0D': 9, # Piano
+        '0x0E': False, # Empty
+        '0x0F': 10, # Xylophone
+    },
+
+    # Ending Sequence 1
+    '0x21': {
+        '0x00': 0, # Malon Voice
+        '0x01': 1, # Malon Voice
+        '0x02': 2, # Clarinet
+        '0x03': False, # Empty
+        '0x04': 3, # Horn
+        '0x05': 4, # Oboe
+        '0x06': 5, # Harp
+        '0x07': 6, # Violin 
+        '0x08': 7, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 8, # Strings
+        '0x0B': 9, # Strings
+        '0x0C': False, # Empty
+        '0x0D': 10, # Bell
+        '0x0E': 11, # Harp
+        '0x0F': 12, # Choir
+    },
+
+    # Ending Sequence 2
+    '0x22': {
+        '0x00': 0, # Koto
+        '0x01': 1, # Ocarina
+        '0x02': 2, # Bassoon
+        '0x03': 3, # Oboe
+        '0x04': 4, # Choir
+        '0x05': 5, # Tamourine
+        '0x06': 6, # Harp
+        '0x07': 7, # Glockenspiel
+        '0x08': 8, # Malon Voice
+        '0x09': False, # Empty
+        '0x0A': 9, # Strings
+        '0x0B': 10, # Strings
+        '0x0C': 11, # Pizzicato Strings
+        '0x0D': 12, # Horn
+        '0x0E': 13, # Choir
+        '0x0F': 14, # This is labeled as "lolwut". I assume this is an instrument and not an empty space?
+    },
+
+    # Fanfares
+    '0x23': {
+        '0x00': False, # Empty
+        '0x01': False, # Empty
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': False, # Empty
+        '0x05': 0, # Trumpet
+        '0x06': 1, # Trumpet (low)
+        '0x07': 2, # Tuba
+        '0x08': 3, # Glockenspiel
+        '0x09': False, # Empty
+        '0x0A': 4, # Strings
+        '0x0B': 5, # Strings
+        '0x0C': False, # Empty
+        '0x0D': False, # Empty
+        '0x0E': 6, # Harp
+    },
+
+    # Owl
+    '0x24': {
+        '0x00': False, # Empty
+        '0x01': 0, # Oboe
+        '0x02': False, # Empty
+        '0x03': 1, # Bassoon
+        '0x04': False, # Empty
+        '0x05': False, # Empty
+        '0x06': False, # Empty
+        '0x07': False, # Empty
+        '0x08': False, # Empty
+        '0x09': False, # Empty
+        '0x0A': 2, # Strings
+        '0x0B': 3, # Strings
+        '0x0C': 4, # Pizzicato Strings
+        '0x0D': False, # Empty
+        '0x0E': 5, # Harp
+    }
+
+}
+
 import os
 import subprocess
 import struct
