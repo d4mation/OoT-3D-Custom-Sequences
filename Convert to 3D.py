@@ -561,6 +561,9 @@ import subprocess
 import struct
 import shutil
 import traceback
+import fileinput
+import sys
+import re
 
 def parse_meta_file( root, file ):
 
@@ -606,6 +609,8 @@ def convert_to_3d():
             try:
 
                 song_name, instrument_set, seq_type, seq_groups = parse_meta_file( root, seq_file.replace( '.seq', '.meta' ) )
+
+                instrument_set = "0x{:02X}".format( int( instrument_set, 16 ) )
             
             except Exception as e:
 
@@ -662,6 +667,35 @@ def convert_to_3d():
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'sseq_to_cseq failure' )
                     print( e.output )
+                    failure_count = failure_count + 1
+                    continue
+
+                try:
+
+                    for line in fileinput.input( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), inplace=True ):
+
+                        match = re.search( r"prg (\d+)", line )
+
+                        if not match:
+                            print( line.rstrip() )
+                            continue
+
+                        instrument_index = match.group(1)
+
+                        new_instrument_index = instrument_list_lookup.get( instrument_set ).get( "0x{:02X}".format( int( instrument_index ) ) )
+
+                        if not new_instrument_index:
+                            print( line.rstrip() )
+                            continue
+
+                        print( line.replace( instrument_index, str( new_instrument_index ) ).rstrip() )
+
+                    fileinput.close()
+
+                except Exception as e:
+                    print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
+                    print( 'cseq instrument fix failure', file=sys.stderr )
+                    print( e, file=sys.stderr )
                     failure_count = failure_count + 1
                     continue
 
