@@ -860,6 +860,11 @@ def convert_to_3d():
 
                 print( e.output )
 
+            if instrument_set not in instrument_list_lookup:
+                print( root + '/' + seq_file + ': instrument set ' + str( instrument_set ) + ' has no entry in instrument_list_lookup', file=sys.stderr )
+                failure_count = failure_count + 1
+                continue
+
             # Skip if already processed
             if not os.path.exists( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) ) :
 
@@ -952,6 +957,8 @@ def convert_to_3d():
                     fileinput.close()
 
                 except Exception as e:
+                    # Restore stdout, which fileinput redirects into the .cseq file while inplace=True
+                    fileinput.close()
                     print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
                     print( 'cseq instrument fix failure', file=sys.stderr )
                     print( e, file=sys.stderr )
