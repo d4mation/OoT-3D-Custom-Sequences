@@ -942,7 +942,8 @@ def convert_to_3d():
 
                         new_instrument_index = instrument_list_lookup.get( instrument_set ).get( "0x{:02X}".format( int( instrument_index ) ) )
 
-                        if not new_instrument_index:
+                        # 0 is a valid index, so only skip indices with no mapping (None) or an empty slot (False)
+                        if new_instrument_index is None or new_instrument_index is False:
                             print( line.rstrip() )
                             continue
 
