@@ -582,6 +582,250 @@ def parse_meta_file( root, file ):
 
     return song_name, instrument_set, seq_type, groups
 
+"""
+Byte length (opcode included) of each command that can appear in an N64 sequence header, from abi/4b - Zelda community only.xml
+
+0xFD (delay) is not listed because its length depends on its argument
+"""
+seq_header_command_lengths = {
+    0xC4: 3, 0xC5: 3, 0xC6: 1, 0xC7: 4, 0xC8: 2, 0xC9: 2, 0xCC: 2, 0xCD: 3, 0xCE: 2,
+    0xD0: 2, 0xD1: 3, 0xD2: 3, 0xD3: 2, 0xD4: 1, 0xD5: 2, 0xD6: 3, 0xD7: 3, 0xD9: 2,
+    0xDA: 4, 0xDB: 2, 0xDC: 2, 0xDD: 2, 0xDE: 2, 0xDF: 2, 0xEF: 4, 0xF0: 1, 0xF1: 2,
+    0xF2: 2, 0xF3: 2, 0xF4: 2, 0xF5: 3, 0xF6: 1, 0xF7: 1, 0xF8: 2, 0xF9: 3, 0xFA: 3,
+    0xFB: 3, 0xFC: 3, 0xFE: 1, 0xFF: 1,
+}
+
+for opcode in range( 0x00, 0x10 ):
+    seq_header_command_lengths[ opcode ] = 1 # testchan
+for opcode in range( 0x40, 0x60 ):
+    seq_header_command_lengths[ opcode ] = 1 # stopchan, subio
+for opcode in range( 0x60, 0x70 ):
+    seq_header_command_lengths[ opcode ] = 3 # loadbank
+for opcode in range( 0x70, 0x90 ):
+    seq_header_command_lengths[ opcode ] = 1 # stio, ldio
+for opcode in range( 0x90, 0xB0 ):
+    seq_header_command_lengths[ opcode ] = 3 # startchan, rstartchan
+for opcode in range( 0xB0, 0xC0 ):
+    seq_header_command_lengths[ opcode ] = 4 # loadseq
+
+def find_loop_ticks( seq_path ):
+    """
+    An N64 sequence loops by ending its sequence header with a jump (0xFB) or relative jump (0xF4) back to an earlier
+    offset in the header. The header starts each channel and then waits with delay commands, so the tick at which the
+    jump target was first reached is the loop start, and the tick at which the jump runs is the loop end.
+
+    seq64 ignores this jump when it exports a MIDI file, so the loop is lost unless it is added back afterwards.
+
+    Returns ( loop_start, loop_end ) in ticks (48 per quarter note, the same as in the .cseq), or None if the
+    sequence ends without looping.
+    """
+
+    with open( seq_path, 'rb' ) as file:
+        data = file.read()
+
+    position = 0
+    tick = 0
+    first_reached = {}
+    stack = [] # ( 'call', return position ) or ( 'loop', loop body position, iterations left )
+
+    for _ in range( 100000 ):
+
+        if position >= len( data ):
+            return None
+
+        if not stack:
+            first_reached.setdefault( position, tick )
+
+        opcode = data[ position ]
+
+        if opcode == 0xFD:
+            length = 3 if data[ position + 1 ] & 0x80 else 2
+        else:
+            length = seq_header_command_lengths.get( opcode )
+
+        if length is None:
+            return None
+
+        next_position = position + length
+
+        if opcode == 0xFD: # delay
+            if length == 3:
+                tick += ( data[ position + 1 ] & 0x7F ) << 8 | data[ position + 2 ]
+            else:
+                tick += data[ position + 1 ]
+
+        elif opcode == 0xFC: # call
+            stack.append( ( 'call', next_position ) )
+            next_position = data[ position + 1 ] << 8 | data[ position + 2 ]
+
+        elif opcode == 0xF8: # loop, where a count of 0 means 256
+            stack.append( ( 'loop', next_position, data[ position + 1 ] or 256 ) )
+
+        elif opcode == 0xF7: # loopend
+            if not stack or stack[-1][0] != 'loop':
+                return None
+
+            kind, loop_body, iterations_left = stack[-1]
+
+            if iterations_left > 1:
+                stack[-1] = ( kind, loop_body, iterations_left - 1 )
+                next_position = loop_body
+            else:
+                stack.pop()
+
+        elif opcode in ( 0xFB, 0xF4 ): # jump, rjump
+            if opcode == 0xFB:
+                target = data[ position + 1 ] << 8 | data[ position + 2 ]
+            else:
+                offset = data[ position + 1 ]
+                target = next_position + ( offset - 256 if offset > 127 else offset )
+
+            if not stack and target in first_reached:
+                return first_reached[ target ], tick
+
+            next_position = target
+
+        elif opcode == 0xFF: # end, or return from a call
+            if not stack:
+                return None
+
+            next_position = stack.pop()[1]
+
+        # Conditional branches (0xF2, 0xF3, 0xF5, 0xF9, 0xFA) are treated as not taken, which is what seq64 does
+
+        position = next_position
+
+    return None
+
+def is_cseq_note( command ):
+    return re.fullmatch( r"[a-g][sn]m?\d+", command ) is not None
+
+def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
+    """
+    midi2sseq writes every track as a straight run of commands that ends with "fin", so the song plays once and stops.
+
+    This rewrites each track so that it plays up to loop_end and then jumps back to a label at loop_start. Commands
+    that set a value (prg, volume, pan, tempo) and ran before loop_start are repeated after the label, so each pass
+    through the loop starts with the same instrument, volume, pan and tempo as the first pass.
+
+    Returns False and leaves the file unchanged if the file contains anything this does not handle.
+    """
+
+    if loop_end <= loop_start:
+        return False
+
+    with open( cseq_path, 'r', encoding='utf-8' ) as file:
+        lines = file.read().splitlines()
+
+    # Split into tracks. The main track has no label, every other track starts at the label given to its opentrack.
+    header = []
+    tracks = [] # [ label, [ command lines ] ]
+    current = None
+
+    for line in lines:
+
+        stripped = line.strip()
+
+        if not stripped or stripped.startswith( ';' ):
+            if current is None:
+                header.append( line )
+            continue
+
+        if stripped.endswith( ':' ):
+            current = [ stripped[:-1], [] ]
+            tracks.append( current )
+            continue
+
+        if current is None:
+            current = [ None, [] ]
+            tracks.append( current )
+
+        current[1].append( stripped )
+
+    setup_commands = ( 'alloctrack', 'opentrack', 'notewait_off' )
+
+    output = list( header )
+
+    for track_number, ( label, commands ) in enumerate( tracks ):
+
+        loop_label = '_loop_track_' + str( track_number )
+
+        setup = []
+        events = [] # ( tick, command line )
+        tick = 0
+
+        for command_line in commands:
+
+            command, _, arguments = command_line.partition( ' ' )
+
+            if command == 'fin':
+                break
+            elif command == 'wait':
+                tick += int( arguments )
+            elif command in setup_commands:
+                setup.append( command_line )
+            elif command in ( 'notewait_on', 'jump', 'call', 'loop_start', 'loop_end', 'ret' ):
+                # Notes advance time in notewait_on mode, and existing control flow would make the tick count wrong
+                return False
+            else:
+                events.append( ( tick, command_line ) )
+
+        if label is not None:
+            output.append( '' )
+            output.append( label + ':' )
+
+        output.extend( '\t' + command_line for command_line in setup )
+
+        state = {}
+        tick = 0
+        label_written = False
+
+        def write_wait( until ):
+            nonlocal tick
+            if until > tick:
+                output.append( '\twait ' + str( until - tick ) )
+                tick = until
+
+        def write_label():
+            nonlocal label_written
+            write_wait( loop_start )
+            output.append( loop_label + ':' )
+            output.extend( '\t' + command_line for command_line in state.values() )
+            label_written = True
+
+        for event_tick, command_line in events:
+
+            if event_tick >= loop_end:
+                break
+
+            if not label_written and event_tick >= loop_start:
+                write_label()
+
+            command, _, arguments = command_line.partition( ' ' )
+
+            if is_cseq_note( command ):
+                # Shorten notes that would ring past the jump back to loop_start
+                parts = arguments.split( ',' )
+                parts[-1] = ' ' + str( min( int( parts[-1] ), loop_end - event_tick ) )
+                command_line = command + ' ' + ','.join( parts ).strip()
+            elif not label_written:
+                state.pop( command, None )
+                state[ command ] = command_line
+
+            write_wait( event_tick )
+            output.append( '\t' + command_line )
+
+        if not label_written:
+            write_label()
+
+        write_wait( loop_end )
+        output.append( '\tjump ' + loop_label )
+
+    with open( cseq_path, 'w', encoding='utf-8' ) as file:
+        file.write( '\n'.join( output ) + '\n' )
+
+    return True
+
 def convert_to_3d():
 
     if not os.path.exists( 'data/Music' ):
@@ -667,6 +911,20 @@ def convert_to_3d():
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'sseq_to_cseq failure' )
                     print( e.output )
+                    failure_count = failure_count + 1
+                    continue
+
+                try:
+
+                    loop_ticks = find_loop_ticks( './' + root + '/' + seq_file )
+
+                    if loop_ticks and not add_loop_to_cseq( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), *loop_ticks ):
+                        print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
+
+                except Exception as e:
+                    print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
+                    print( 'cseq loop failure', file=sys.stderr )
+                    print( e, file=sys.stderr )
                     failure_count = failure_count + 1
                     continue
 
