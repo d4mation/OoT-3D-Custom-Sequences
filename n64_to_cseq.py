@@ -2,7 +2,7 @@
 Converts an N64 Ocarina of Time sequence (.seq) to the 3DS sequence text format (.cseq) that bcseq.py assembles into a
 .bcseq.
 
-It runs the sequence the way the game's sequence player does, following AudioSeq_SequencePlayerProcessSequence,
+It runs the sequence the way the N64 game's sequence player does, following AudioSeq_SequencePlayerProcessSequence,
 AudioSeq_SequenceChannelProcessScript and AudioSeq_SeqLayerProcessScript in the OoT decomp
 (src/audio/internal/seqplayer.c), and writes what it plays.
 
@@ -45,7 +45,7 @@ header_argument_sizes = {
     0xEF: [ 2, 1 ], 0xF0: [], 0xF1: [ 1 ],
 }
 
-# The game stops a sequence that runs this long without ending or looping
+# A sequence that runs this long without ending or looping is refused, so that one that never ends cannot run forever
 MAX_TICKS = 500000
 
 """
@@ -57,7 +57,7 @@ They come from AudioHeap_Init in src/audio/internal/heap.c for NTSC (refresh rat
 - maxTempoTvTypeFactors = 1000 * REFRESH_RATE_DEVIATION_NTSC / REFRESH_RATE_NTSC = 1000 * 1.00278 / 60
 - maxTempo = ticksPerUpdate * ( 60 * 1000 * 48 ) / 48 / maxTempoTvTypeFactors = 10770 ticks per minute
 - unk_2870 = refreshRate * ticksPerUpdate / aiSamplingFrequency / maxTempo
-The game computes these in 32-bit floats, so f32() rounds every step the same way.
+The N64 game computes these in 32-bit floats, so f32() rounds every step the same way.
 """
 REFRESH_RATE = 60
 TICKS_PER_UPDATE = 3
@@ -206,7 +206,7 @@ class Sequence:
         self.loop = None
         self.header_positions = {}
         # Addresses of the short note tables set by ldshortvelarr and ldshortgatearr, or None for the defaults.
-        # The game keeps a pointer into the sequence data and reads an entry when a note uses it.
+        # The N64 game keeps a pointer into the sequence data and reads an entry when a note uses it.
         self.short_velocity_table = None
         self.short_gate_time_table = None
         # Events per track: track number -> [ ( tick, order, event ) ], where event is a Note or a command string
@@ -250,6 +250,10 @@ class Sequence:
         Returns the delay to wait, 0 to keep reading, or None when the script ends.
         """
 
+        # At the fifth call level, the loop commands would use the loop counters that hold the return position
+        if len( script.stack ) == 5 and command in ( 0xF8, 0xF7, 0xF6 ):
+            raise UnsupportedSequence( 'a loop runs inside a fifth nested call' )
+
         if command == 0xFF: # end
             if not script.stack:
                 return None
@@ -259,8 +263,16 @@ class Sequence:
         elif command == 0xFE: # delay1
             return 1
         elif command == 0xFC: # call
-            if len( script.stack ) >= 4:
-                raise UnsupportedSequence( 'calls nest deeper than the game allows' )
+            if len( script.stack ) == 4:
+                """
+                The N64 game does not check the depth here, so a fifth call writes its return position to stack[4], which
+                in SeqScriptState is remLoopIters[0 - 3]. That still returns to the right place, as long as no outer
+                level is a loop (its iteration count would be overwritten) and the fifth level does not call or loop.
+                """
+                if any( iterations for position, iterations in script.stack ):
+                    raise UnsupportedSequence( 'a fifth nested call overwrites the iteration count of a loop' )
+            elif len( script.stack ) > 4:
+                raise UnsupportedSequence( 'calls nest deeper than the N64 game allows' )
             script.stack.append( [ script.pc, 0 ] )
             script.pc = argument & 0xFFFF
         elif command == 0xF8: # loop, where 0 iterations means 256
@@ -268,7 +280,7 @@ class Sequence:
         elif command == 0xF7: # loopend
             if not script.stack:
                 """
-                Some sequences have a loopend with no loop before it. The game then uses index -1 of its stack arrays:
+                Some sequences have a loopend with no loop before it. The N64 game then uses index -1 of its stack arrays:
                 in SeqScriptState, stack[-1] is pc itself and remLoopIters[-1] is the last byte of stack[3], so the
                 script continues from where it is unless that byte is 1.
                 """
@@ -343,7 +355,7 @@ class Sequence:
 
                 arguments = self.read_arguments( script, header_argument_sizes[ command ] )
 
-                if command == 0xDD: # tempo, which the game caps at maxTempo
+                if command == 0xDD: # tempo, which the N64 game caps at maxTempo
                     self.tempo = max( min( arguments[0] * SEQTICKS_PER_BEAT, MAX_TEMPO ), 1 )
                     self.emit( 0, 'tempo ' + str( max( self.tempo // SEQTICKS_PER_BEAT, 1 ) ) )
                 elif command == 0xDF: # transpose
@@ -698,7 +710,7 @@ class Sequence:
         else:
             semitone += self.transposition + channel.transposition + layer.transposition
 
-        # The game mutes notes outside of the instrument range, before setting a delay of 0 from the sample
+        # The N64 game mutes notes outside of the instrument range, before setting a delay of 0 from the sample
         if not 0 <= semitone < 0x80 or semitone + 21 > 127:
             script.wake = self.tick + max( delay, 1 )
             return
