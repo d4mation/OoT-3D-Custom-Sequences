@@ -1503,13 +1503,13 @@ sample_lookup = {
 }
 
 import os
-import subprocess
 import shutil
 import traceback
 import sys
 import re
 import xml.etree.ElementTree as ElementTree
 
+import bcseq
 import n64_to_cseq
 
 def parse_meta_file( root, file ):
@@ -1913,11 +1913,6 @@ def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
 
     return True
 
-"""
-Seconds SequenceConvert may run for one song. Without a limit, a tool that never finishes stops the whole run.
-"""
-tool_timeout = 120
-
 def convert_to_3d():
 
     if not os.path.exists( 'data/Music' ):
@@ -2025,19 +2020,10 @@ def convert_to_3d():
 
                 try:
 
-                    cseq_to_bcseq = subprocess.run(
-                        './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) + '"',
-                        check=True,
-                        text=True,
-                        capture_output=True,
-                        timeout=tool_timeout
-                    )
+                    bcseq.assemble_file( cseq_path, './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) )
 
                 except Exception as e:
-                    print( '.tmp/' + root + '/' + seq_file )
-                    print( 'cseq_to_bcseq failure' )
-                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
-                    print( getattr( e, 'output', None ) or e )
+                    print( root + '/' + seq_file + ': cseq_to_bcseq failure: ' + repr( e ), file=sys.stderr )
                     failure_count = failure_count + 1
                     continue
 

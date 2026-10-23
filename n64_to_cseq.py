@@ -1,6 +1,6 @@
 """
-Converts an N64 Ocarina of Time sequence (.seq) to the 3DS sequence text format (.cseq) that SequenceConvert assembles
-into a .bcseq.
+Converts an N64 Ocarina of Time sequence (.seq) to the 3DS sequence text format (.cseq) that bcseq.py assembles into a
+.bcseq.
 
 It runs the sequence the way the game's sequence player does, following AudioSeq_SequencePlayerProcessSequence,
 AudioSeq_SequenceChannelProcessScript and AudioSeq_SeqLayerProcessScript in the OoT decomp
