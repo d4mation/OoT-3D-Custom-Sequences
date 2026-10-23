@@ -1,4 +1,15 @@
+.sw*
+.vs
+.vscode
+.idea
+/Output
+__pycache__
+
+**/.DS_Store
+
 groups_list.json
 song_list.txt
 tmp/
 Custom Music/
+
+*vanilla_banks*

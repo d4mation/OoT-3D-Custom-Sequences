@@ -2,25 +2,41 @@ name: Generate SoH Archive
 
 on:
   push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "**" ]
+    branches: [ "Custom-Music-2.0" ] 
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Generate SoH archive
       run: |
-        cd data
-        wget https://github.com/leggettc18/SequenceOTRizer/releases/download/v0.2/SequenceOTRizer-0.2-Linux.tar.gz
+        mkdir data/Music_Extracted
+        cd data/Music
+        find . -type f -name '*.ootrs' | while read filename; do \
+          output_dir="../Music_Extracted/${filename%.*}/"; \
+          mkdir -p "$output_dir"; \
+          unzip -o -d "$output_dir" "$filename"; \
+          done; \
+        cd ../
+        wget https://github.com/leggettc18/SequenceOTRizer/releases/download/v0.4/SequenceOTRizer-0.2-Linux.tar.gz
         tar -xzvf SequenceOTRizer-0.2-Linux.tar.gz
-        ./SequenceOTRizer --seq-path Music --otr-name daruniasjoy
+        ./SequenceOTRizer --seq-path Music_Extracted --otr-name daruniasjoy
 
     - name: Upload generated daruniasjoy.otr
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: daruniasjoy.otr
         path: data/mods
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: data/mods/daruniasjoy.otr
+        tag_name: latest
+        name: Ship of Harkinian Bundle
+        draft: false
+        prerelease: false
