@@ -1353,6 +1353,47 @@ def remap_cseq_instruments( cseq_path, instrument_set ):
 
     return []
 
+def end_cseq_tracks( cseq_path ):
+    """
+    Adds "fin" to the end of every track that has neither "fin" nor "jump".
+
+    In some songs that do not loop, midi2sseq ends a track after its last command without "fin", so the 3DS would keep
+    reading past the end of that track.
+    """
+
+    with open( cseq_path, 'r', encoding='utf-8' ) as file:
+        lines = file.read().splitlines()
+
+    track_labels = set( re.findall( r"opentrack \d+, (\S+)", '\n'.join( lines ) ) )
+    output = []
+    ended = True
+
+    for line in lines:
+
+        stripped = line.strip()
+
+        if stripped.endswith( ':' ) and stripped[:-1] in track_labels:
+            if not ended:
+                output.append( '\tfin' )
+            ended = False
+            output.append( line )
+            continue
+
+        if stripped and not stripped.startswith( ';' ):
+            command = stripped.split()[0]
+            if command == 'fin' or command == 'jump':
+                ended = True
+            elif not stripped.endswith( ':' ):
+                ended = False
+
+        output.append( line )
+
+    if not ended:
+        output.append( '\tfin' )
+
+    with open( cseq_path, 'w', encoding='utf-8' ) as file:
+        file.write( '\n'.join( output ) + '\n' )
+
 def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
     """
     midi2sseq writes every track as a straight run of commands that ends with "fin", so the song plays once and stops.
@@ -1621,6 +1662,10 @@ def convert_to_3d():
 
                     if loop_ticks and not add_loop_to_cseq( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), *loop_ticks ):
                         print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
+                        loop_ticks = None
+
+                    if not loop_ticks:
+                        end_cseq_tracks( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) )
 
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
