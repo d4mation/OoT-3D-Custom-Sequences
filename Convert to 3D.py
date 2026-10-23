@@ -815,6 +815,8 @@ import sys
 import re
 import xml.etree.ElementTree as ElementTree
 
+import n64_to_cseq
+
 def parse_meta_file( root, file ):
 
     path = root + "/" + file
@@ -831,269 +833,6 @@ def parse_meta_file( root, file ):
     groups = [ g.strip() for g in lines[3].split( ',' ) ] if len( lines ) >= 4 else []
 
     return song_name, instrument_set, seq_type, groups
-
-"""
-Byte length (opcode included) of each command that can appear in an N64 sequence header, from abi/4b - Zelda community only.xml
-
-0xFD (delay) is not listed because its length depends on its argument
-"""
-seq_header_command_lengths = {
-    0xC4: 3, 0xC5: 3, 0xC6: 1, 0xC7: 4, 0xC8: 2, 0xC9: 2, 0xCC: 2, 0xCD: 3, 0xCE: 2,
-    0xD0: 2, 0xD1: 3, 0xD2: 3, 0xD3: 2, 0xD4: 1, 0xD5: 2, 0xD6: 3, 0xD7: 3, 0xD9: 2,
-    0xDA: 4, 0xDB: 2, 0xDC: 2, 0xDD: 2, 0xDE: 2, 0xDF: 2, 0xEF: 4, 0xF0: 1, 0xF1: 2,
-    0xF2: 2, 0xF3: 2, 0xF4: 2, 0xF5: 3, 0xF6: 1, 0xF7: 1, 0xF8: 2, 0xF9: 3, 0xFA: 3,
-    0xFB: 3, 0xFC: 3, 0xFE: 1, 0xFF: 1,
-}
-
-for opcode in range( 0x00, 0x10 ):
-    seq_header_command_lengths[ opcode ] = 1 # testchan
-for opcode in range( 0x40, 0x60 ):
-    seq_header_command_lengths[ opcode ] = 1 # stopchan, subio
-for opcode in range( 0x60, 0x70 ):
-    seq_header_command_lengths[ opcode ] = 3 # loadbank
-for opcode in range( 0x70, 0x90 ):
-    seq_header_command_lengths[ opcode ] = 1 # stio, ldio
-for opcode in range( 0x90, 0xB0 ):
-    seq_header_command_lengths[ opcode ] = 3 # startchan, rstartchan
-for opcode in range( 0xB0, 0xC0 ):
-    seq_header_command_lengths[ opcode ] = 4 # loadseq
-
-def find_loop_ticks( seq_path ):
-    """
-    An N64 sequence loops by ending its sequence header with a jump (0xFB) or relative jump (0xF4) back to an earlier
-    offset in the header. The header starts each channel and then waits with delay commands, so the tick at which the
-    jump target was first reached is the loop start, and the tick at which the jump runs is the loop end.
-
-    seq64 ignores this jump when it exports a MIDI file, so the loop is lost unless it is added back afterwards.
-
-    Returns ( loop_start, loop_end ) in ticks (48 per quarter note, the same as in the .cseq), or None if the
-    sequence ends without looping.
-    """
-
-    with open( seq_path, 'rb' ) as file:
-        data = file.read()
-
-    position = 0
-    tick = 0
-    first_reached = {}
-    stack = [] # ( 'call', return position ) or ( 'loop', loop body position, iterations left )
-
-    for _ in range( 100000 ):
-
-        if position >= len( data ):
-            return None
-
-        if not stack:
-            first_reached.setdefault( position, tick )
-
-        opcode = data[ position ]
-
-        if opcode == 0xFD:
-            length = 3 if data[ position + 1 ] & 0x80 else 2
-        else:
-            length = seq_header_command_lengths.get( opcode )
-
-        if length is None:
-            return None
-
-        next_position = position + length
-
-        if opcode == 0xFD: # delay
-            if length == 3:
-                tick += ( data[ position + 1 ] & 0x7F ) << 8 | data[ position + 2 ]
-            else:
-                tick += data[ position + 1 ]
-
-        elif opcode == 0xFC: # call
-            stack.append( ( 'call', next_position ) )
-            next_position = data[ position + 1 ] << 8 | data[ position + 2 ]
-
-        elif opcode == 0xF8: # loop, where a count of 0 means 256
-            stack.append( ( 'loop', next_position, data[ position + 1 ] or 256 ) )
-
-        elif opcode == 0xF7: # loopend
-            if not stack or stack[-1][0] != 'loop':
-                return None
-
-            kind, loop_body, iterations_left = stack[-1]
-
-            if iterations_left > 1:
-                stack[-1] = ( kind, loop_body, iterations_left - 1 )
-                next_position = loop_body
-            else:
-                stack.pop()
-
-        elif opcode in ( 0xFB, 0xF4 ): # jump, rjump
-            if opcode == 0xFB:
-                target = data[ position + 1 ] << 8 | data[ position + 2 ]
-            else:
-                offset = data[ position + 1 ]
-                target = next_position + ( offset - 256 if offset > 127 else offset )
-
-            if not stack and target in first_reached:
-                return first_reached[ target ], tick
-
-            next_position = target
-
-        elif opcode == 0xFF: # end, or return from a call
-            if not stack:
-                return None
-
-            next_position = stack.pop()[1]
-
-        # Conditional branches (0xF2, 0xF3, 0xF5, 0xF9, 0xFA) are treated as not taken, which is what seq64 does
-
-        position = next_position
-
-    return None
-
-def signed_byte( value ):
-    value &= 0xFF
-    return value - 256 if value > 127 else value
-
-def fill_with_no_ops( data, start, end ):
-    """
-    Overwrites data[ start:end ] with sequence header commands that do nothing, keeping every other address in place:
-    stprel 0 (0xDE 0x00, 2 bytes), disablechan (0xD6, 3 bytes, a no-op in the game) and unreservenotes (0xF0, 1 byte).
-    """
-    length = end - start
-    filler = b''
-    if length % 2:
-        filler = b'\xD6\x00\x00' if length >= 3 else b'\xF0'
-    filler += b'\xDE\x00' * ( ( length - len( filler ) ) // 2 )
-    data[ start:end ] = filler
-
-def linearize_sequence_header( data ):
-    """
-    Some sequences (the Majora's Mask fanfares) run a small program in the sequence header before starting their
-    channels: they read a game I/O value (ldio), branch on it, and write the result into their own commands (sts). seq64
-    reads the header in a straight line and stops at the first jump, so it exports a MIDI file with no notes.
-
-    This runs the header the way OoT does, where every I/O value starts at -1, and rewrites it into that straight line:
-    sts writes are applied to the bytes they target, and the commands that only decide which path to take (I/O, Q
-    register math, branches and forward jumps), plus the bytes a taken branch skips, are replaced with commands that do
-    nothing. Addresses do not move. The jump back to an earlier position, which loops the song, is kept.
-
-    Returns the rewritten sequence, the original data if the header has no such program, or None if it uses something
-    this cannot follow (random values, channel tests, calls, loops, or writes outside the header path).
-    """
-
-    data = bytearray( data )
-    io = [ -1 ] * 8
-    q = 0
-    position = 0
-    executed = []
-    dynamic = []
-    skipped = []
-    writes = {}
-
-    for _ in range( 10000 ):
-
-        if position >= len( data ):
-            return None
-
-        opcode = data[ position ]
-
-        if opcode == 0xFD:
-            length = 3 if data[ position + 1 ] & 0x80 else 2
-        else:
-            length = seq_header_command_lengths.get( opcode )
-
-        if length is None:
-            return None
-
-        if any( start == position for start, _ in executed ):
-            # Reached a command a second time without a jump back, which means the header loops through a branch
-            return None
-
-        executed.append( ( position, length ) )
-        next_position = position + length
-        argument = data[ position + 1 ] if length > 1 else 0
-
-        if opcode in ( 0xCE, 0xFC, 0xF8, 0xF7, 0xCD ) or opcode <= 0x0F:
-            # rand, call, loop, loopend, dyncall and testchan depend on state this does not track. A header that uses
-            # them without any of the commands this rewrites is left as it is, which seq64 already reads correctly.
-            return None if dynamic else bytes( data )
-
-        if 0x80 <= opcode <= 0x8F: # ldio
-            index = opcode & 0x0F
-            q = io[ index ] if index < len( io ) else -1
-            if index < 2:
-                io[ index ] = -1
-            dynamic.append( position )
-        elif 0x70 <= opcode <= 0x7F: # stio
-            if ( opcode & 0x0F ) < len( io ):
-                io[ opcode & 0x0F ] = q
-            dynamic.append( position )
-        elif 0x50 <= opcode <= 0x5F: # subio
-            q = signed_byte( q - ( io[ opcode & 0x0F ] if ( opcode & 0x0F ) < len( io ) else -1 ) )
-            dynamic.append( position )
-        elif opcode == 0xCC: # ldi
-            q = signed_byte( argument )
-            dynamic.append( position )
-        elif opcode == 0xC8: # sub
-            q = signed_byte( q - argument )
-            dynamic.append( position )
-        elif opcode == 0xC9: # and
-            q = signed_byte( q & argument )
-            dynamic.append( position )
-        elif opcode == 0xC7: # sts: data[ address ] = Q + immediate
-            address = data[ position + 2 ] << 8 | data[ position + 3 ]
-            writes[ address ] = ( q + data[ position + 1 ] ) & 0xFF
-            data[ address ] = writes[ address ]
-            dynamic.append( position )
-        elif opcode in ( 0xF2, 0xF3, 0xF4, 0xF5, 0xF9, 0xFA, 0xFB ):
-
-            if opcode in ( 0xF2, 0xF3, 0xF4 ):
-                target = next_position + signed_byte( argument )
-            else:
-                target = data[ position + 1 ] << 8 | data[ position + 2 ]
-
-            taken = {
-                0xF2: q < 0, 0xF3: q == 0, 0xF4: True,
-                0xF5: q >= 0, 0xF9: q < 0, 0xFA: q == 0, 0xFB: True,
-            }[ opcode ]
-
-            if taken and target <= position:
-                # The jump back that loops the song
-                if opcode not in ( 0xF4, 0xFB ):
-                    return None
-                break
-
-            dynamic.append( position )
-
-            if taken:
-                skipped.append( ( next_position, target ) )
-                next_position = target
-
-        elif opcode == 0xFF:
-            break
-
-        position = next_position
-
-    else:
-        return None
-
-    if not dynamic:
-        return bytes( data )
-
-    kept = [ ( start, length ) for start, length in executed if start not in dynamic ]
-
-    for address in writes:
-        # A write must land inside a command that is kept, or it would be overwritten by the filler
-        if not any( start < address < start + length for start, length in kept ):
-            return None
-
-    for start in dynamic:
-        length = next( length for begin, length in executed if begin == start )
-        fill_with_no_ops( data, start, start + length )
-
-    for start, end in skipped:
-        if any( start <= begin < end for begin, length in kept ):
-            return None
-        fill_with_no_ops( data, start, end )
-
-    return bytes( data )
 
 def load_abi_commands( abi_path ):
     """
@@ -1128,7 +867,7 @@ def find_used_instruments( seq_path ):
     Returns a dict with:
     - instruments: instrument indices set by instr or bankinstr
     - banks: instrument sets switched to by bankinstr
-    - layer_instruments: instrument indices set by linst, which seq64 does not export
+    - layer_instruments: instrument indices set by linst, which n64_to_cseq.py does not convert
     - complete: False if part of the sequence could not be followed (dynamic tables, short notes or unknown commands)
     """
 
@@ -1229,7 +968,7 @@ def find_unmappable_instruments( seq_path, instrument_set ):
         reasons.append( 'it switches to instrument sets ' + ', '.join( other_banks ) + ' with bankinstr' )
 
     if use[ 'layer_instruments' ]:
-        reasons.append( 'it sets instruments ' + str( sorted( use[ 'layer_instruments' ] ) ) + ' in note layers, which seq64 does not export' )
+        reasons.append( 'it sets instruments ' + str( sorted( use[ 'layer_instruments' ] ) ) + ' in note layers, which n64_to_cseq.py does not convert' )
 
     synthesized = sorted( index for index in use[ 'instruments' ] if index >= 0x80 )
     if synthesized:
@@ -1276,7 +1015,7 @@ def remap_cseq_instruments( cseq_path, instrument_set ):
     """
     Changes each "prg" from the N64 instrument index to the 3DS one, and moves each drum note to the 3DS drum kit key.
 
-    On the N64, instrument 0x7F selects the drums, and drum N is played by note N. seq64 writes drum N as MIDI key N + 21.
+    On the N64, instrument 0x7F selects the drums, and drum N is played by note N. n64_to_cseq.py writes drum N as key N + 21.
     On the 3DS, the drum kit is the last instrument in the bank, and drum_note_lookup gives the key for each N64 drum.
 
     Returns a list of reasons the song cannot be converted. The file is only changed when the list is empty.
@@ -1353,50 +1092,9 @@ def remap_cseq_instruments( cseq_path, instrument_set ):
 
     return []
 
-def end_cseq_tracks( cseq_path ):
-    """
-    Adds "fin" to the end of every track that has neither "fin" nor "jump".
-
-    In some songs that do not loop, midi2sseq ends a track after its last command without "fin", so the 3DS would keep
-    reading past the end of that track.
-    """
-
-    with open( cseq_path, 'r', encoding='utf-8' ) as file:
-        lines = file.read().splitlines()
-
-    track_labels = set( re.findall( r"opentrack \d+, (\S+)", '\n'.join( lines ) ) )
-    output = []
-    ended = True
-
-    for line in lines:
-
-        stripped = line.strip()
-
-        if stripped.endswith( ':' ) and stripped[:-1] in track_labels:
-            if not ended:
-                output.append( '\tfin' )
-            ended = False
-            output.append( line )
-            continue
-
-        if stripped and not stripped.startswith( ';' ):
-            command = stripped.split()[0]
-            if command == 'fin' or command == 'jump':
-                ended = True
-            elif not stripped.endswith( ':' ):
-                ended = False
-
-        output.append( line )
-
-    if not ended:
-        output.append( '\tfin' )
-
-    with open( cseq_path, 'w', encoding='utf-8' ) as file:
-        file.write( '\n'.join( output ) + '\n' )
-
 def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
     """
-    midi2sseq writes every track as a straight run of commands that ends with "fin", so the song plays once and stops.
+    n64_to_cseq.py writes every track as a straight run of commands that ends with "fin", so the song plays once and stops.
 
     This rewrites each track so that it plays up to loop_end and then jumps back to a label at loop_start. Commands
     that set a value (prg, volume, pan, tempo) and ran before loop_start are repeated after the label, so each pass
@@ -1521,8 +1219,7 @@ def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
     return True
 
 """
-Seconds each conversion tool may run for one song. midi2sseq never finishes on some MIDI files, such as one with no
-notes, and without a limit it stops the whole run.
+Seconds SequenceConvert may run for one song. Without a limit, a tool that never finishes stops the whole run.
 """
 tool_timeout = 120
 
@@ -1587,85 +1284,26 @@ def convert_to_3d():
 
                 os.makedirs( './tmp/' + root, exist_ok=True )
 
-                # seq64 and find_loop_ticks read this copy, with the sequence header rewritten into a straight line
-                linear_seq_path = './tmp/' + root + '/' + seq_file
+                cseq_path = './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' )
 
-                with open( './' + root + '/' + seq_file, 'rb' ) as original:
-                    linear_seq = linearize_sequence_header( original.read() )
+                try:
 
-                if linear_seq is None:
-                    print( root + '/' + seq_file + ': skipped, its sequence header uses commands that cannot be rewritten for seq64', file=sys.stderr )
+                    loop_ticks, unsupported = n64_to_cseq.convert( './' + root + '/' + seq_file, cseq_path )
+
+                except Exception as e:
+                    print( root + '/' + seq_file + ': seq_to_cseq failure: ' + repr( e ), file=sys.stderr )
+                    failure_count = failure_count + 1
+                    continue
+
+                if unsupported:
+                    print( root + '/' + seq_file + ': skipped, ' + unsupported, file=sys.stderr )
                     skipped_count = skipped_count + 1
                     continue
 
-                with open( linear_seq_path, 'wb' ) as linear:
-                    linear.write( linear_seq )
-
                 try:
 
-                    seq_to_midi = subprocess.run(
-                        './seq64_console.exe --abi=4b --in="' + linear_seq_path + '" --out="./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '"',
-                        check=True,
-                        text=True,
-                        capture_output=True,
-                        timeout=tool_timeout
-                    )
-
-                except Exception as e:
-                    print( root + '/' + seq_file )
-                    print( 'seq_to_midi failure' )
-                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
-                    print( getattr( e, 'output', None ) or e )
-                    failure_count = failure_count + 1
-                    continue
-
-                try:
-
-                    midi_to_sseq = subprocess.run(
-                        './midi2sseq.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '"',
-                        check=True,
-                        text=True,
-                        capture_output=True,
-                        timeout=tool_timeout
-                    )
-
-                except Exception as e:
-                    print( '.tmp/' + root + '/' + seq_file )
-                    print( 'midi_to_sseq failure' )
-                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
-                    print( getattr( e, 'output', None ) or e )
-                    failure_count = failure_count + 1
-                    continue
-
-                try:
-
-                    # We change the extension during this command to skip a step
-                    sseq_to_cseq = subprocess.run(
-                        './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '"',
-                        check=True,
-                        text=True,
-                        capture_output=True,
-                        timeout=tool_timeout
-                    )
-
-                except Exception as e:
-                    print( '.tmp/' + root + '/' + seq_file )
-                    print( 'sseq_to_cseq failure' )
-                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
-                    print( getattr( e, 'output', None ) or e )
-                    failure_count = failure_count + 1
-                    continue
-
-                try:
-
-                    loop_ticks = find_loop_ticks( linear_seq_path )
-
-                    if loop_ticks and not add_loop_to_cseq( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), *loop_ticks ):
+                    if loop_ticks and not add_loop_to_cseq( cseq_path, *loop_ticks ):
                         print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
-                        loop_ticks = None
-
-                    if not loop_ticks:
-                        end_cseq_tracks( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) )
 
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
