@@ -299,8 +299,10 @@ location_lookup = {
 }
 
 import os
+import re
 import shutil
 import sys
+import unicodedata
 
 import music_files
 
@@ -312,17 +314,51 @@ def node_path( directory ):
     """
     return '/'.join( '!' + part for part in directory.split( '/' ) )
 
-def copy_song( root, seq_file, directory ):
+def ascii_file_name( song_name ):
+    """
+    Returns the song name as an ASCII file name. The OoT3D Randomizer opens sequence files with
+    fsMakePath( PATH_ASCII, ... ) (source/custom_music/ctr_binary_data.cpp), so a file name with other characters would
+    not be found. Accents are dropped, slashes become "-", and other characters a file name cannot have are removed.
+    """
+    text = unicodedata.normalize( 'NFKD', song_name )
+    text = ''.join( character for character in text if not unicodedata.combining( character ) )
+    text = re.sub( r'[/\\∕]', '-', text )
+    text = ''.join( character for character in text if character.isascii() and character.isprintable() and character not in ':*?"<>|' )
+    # FAT does not allow a file name to end with a dot or a space
+    return re.sub( r'\s+', ' ', text ).strip().rstrip( '. ' ) or 'Song'
+
+def assign_file_names( converted ):
+    """
+    Returns { converted .bcseq path: file name without extension }. Songs from different games often share a file name
+    (such as Main Theme.bcseq), so each song is named by its key, the first line of its .meta file. Songs whose keys give
+    the same file name get " 2", " 3", ... in path order.
+    """
+    names = {}
+    used = set()
+    for path, song_name in sorted( converted ):
+        base = ascii_file_name( song_name )
+        name = base
+        number = 2
+        while name.lower() in used:
+            name = base + ' ' + str( number )
+            number += 1
+        used.add( name.lower() )
+        names[ path ] = name
+    return names
+
+def copy_song( bcseq_path, file_name, directory ):
 
     destination = './Custom Music/' + node_path( directory )
 
     os.makedirs( destination, exist_ok=True )
 
-    shutil.copy( './' + root + '/' + seq_file, destination )
+    shutil.copy( bcseq_path, destination + '/' + file_name + '.bcseq' )
 
-    if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
+    cmeta_path = bcseq_path[:-len( '.bcseq' )] + '.cmeta'
 
-        shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), destination )
+    if os.path.exists( cmeta_path ) :
+
+        shutil.copy( cmeta_path, destination + '/' + file_name + '.cmeta' )
 
 def read_song_list( path ):
     """
@@ -366,6 +402,9 @@ def move_to_3d( song_list_path=None ):
     # The .meta file of each converted song, from its .seq and .meta files or its .ootrs archive in data/Music
     songs_by_path = { song.path: song for song in music_files.find_songs( 'data/Music' ) }
 
+    # Each song to copy: ( .bcseq path, song name, type, groups )
+    to_copy = []
+
     songs = os.walk( 'Converted/data/Music' )
 
     for root, dirs, files in songs: 
@@ -392,34 +431,40 @@ def move_to_3d( song_list_path=None ):
 
                 found_keys.add( song_name )
 
-            # Try to set some defaults, just in case
-            if not seq_groups: 
+            to_copy.append( ( root + '/' + seq_file, song_name, seq_type, seq_groups ) )
 
-                if seq_type == 'bgm':
+    file_names = assign_file_names( [ ( bcseq_path, song_name ) for bcseq_path, song_name, seq_type, seq_groups in to_copy ] )
 
-                    seq_groups = [ 'Overworld' ]
+    for bcseq_path, song_name, seq_type, seq_groups in to_copy:
 
-                else:
+        # Try to set some defaults, just in case
+        if not seq_groups: 
 
-                    seq_groups = [ 'EventFanfare' ]
+            if seq_type == 'bgm':
 
-            # Copy the generated files into the correct locations
-            for group in seq_groups:
+                seq_groups = [ 'Overworld' ]
 
-                low = location_lookup.get( 'low' ).get( group )
-                medium = location_lookup.get( 'medium' ).get( group )
-                high = location_lookup.get( 'high' ).get( group )
-                exact = location_lookup.get( 'exact' ).get( group )
+            else:
 
-                if not any( group in level for level in location_lookup.values() ):
-                    print( root + '/' + seq_file + ': unknown group ' + group, file=sys.stderr )
+                seq_groups = [ 'EventFanfare' ]
 
-                if isinstance( exact, str ):
-                    exact = [ exact ]
+        # Copy the generated files into the correct locations
+        for group in seq_groups:
 
-                for directory in ( low or [] ) + ( medium or [] ) + ( high or [] ) + ( exact or [] ):
+            low = location_lookup.get( 'low' ).get( group )
+            medium = location_lookup.get( 'medium' ).get( group )
+            high = location_lookup.get( 'high' ).get( group )
+            exact = location_lookup.get( 'exact' ).get( group )
 
-                    copy_song( root, seq_file, directory )
+            if not any( group in level for level in location_lookup.values() ):
+                print( bcseq_path + ': unknown group ' + group, file=sys.stderr )
+
+            if isinstance( exact, str ):
+                exact = [ exact ]
+
+            for directory in ( low or [] ) + ( medium or [] ) + ( high or [] ) + ( exact or [] ):
+
+                copy_song( bcseq_path, file_names[ bcseq_path ], directory )
 
     if keys is not None:
 
