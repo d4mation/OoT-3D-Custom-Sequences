@@ -26,8 +26,8 @@ location_lookup = {
         'EventFanfare': [
             "Melodies/Fanfares/Item Jingles/Item Get",
             "Melodies/Fanfares/Item Jingles/Heart Container Get",
-            "Melodies/Fanfares/Item Jingles/Spritual Stone Get",
-            "Melodies/Fanfares/Item Jingles/Item Get",
+            "Melodies/Fanfares/Item Jingles/Spiritual Stone Get",
+            "Melodies/Fanfares/Item Jingles/Small Item Get",
             "Melodies/Fanfares/Item Jingles/Medallion Get",
             "Melodies/Fanfares/Item Jingles/Song Learned",
             "Melodies/Fanfares/Misc Fanfares/Boss Clear",
@@ -46,13 +46,13 @@ location_lookup = {
             "Melodies/Ocarina Songs/Warp Songs/Minuet of Forest",
             "Melodies/Ocarina Songs/Warp Songs/Serenade of Water",
             "Melodies/Ocarina Songs/Warp Songs/Requiem of Spirit",
-            "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # Typo? The directory is "Nocture" instead of "Nocturne"
+            "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # The OoT3D Randomizer spells this folder "Nocture" in source/music.cpp
             "Melodies/Ocarina Songs/Child Songs/Saria's Song",
             "Melodies/Ocarina Songs/Child Songs/Epona's Song",
             "Melodies/Ocarina Songs/Child Songs/Zelda's Lullaby",
-            "Melodies/Ocarina Songs/Child Songs/Sun's Song", # This directory is actually missing? Assuming it is a bug with the CIA creating the directories
             "Melodies/Ocarina Songs/Child Songs/Song of Time",
             "Melodies/Ocarina Songs/Child Songs/Song of Storms",
+            # No Sun's Song: the OoT3D Randomizer comments out its "Sun's Song" folder in source/music.cpp ("Still unshuffled because of bugs")
         ]
     },
     'medium': {
@@ -71,6 +71,7 @@ location_lookup = {
         'Indoors': [
             'Background Music/Event Music/Minigame Theme 2',
             'Background Music/Event Music/File Select',
+            'Background Music/Area Themes/Interiors/Fairy Fountain',
             'Background Music/Area Themes/Interiors/Temple of Time',
             'Background Music/Event Music/Goddess Theme',
             'Background Music/Area Themes/Interiors/House Theme',
@@ -89,7 +90,7 @@ location_lookup = {
             'Background Music/Area Themes/Dungeons/Water Temple',
             'Background Music/Area Themes/Dungeons/Spirit Temple',
             'Background Music/Area Themes/Dungeons/Shadow Temple',
-            "Background Music/Area Themes/Dungeons/Ganon's Tower",
+            "Background Music/Area Themes/Dungeons/Ganon's Castle",
             'Background Music/Event Music/Tower Escape',
         ],
         'SmallFight': [
@@ -118,8 +119,8 @@ location_lookup = {
         'ItemFanfare': [
             "Melodies/Fanfares/Item Jingles/Item Get",
             "Melodies/Fanfares/Item Jingles/Heart Container Get",
-            "Melodies/Fanfares/Item Jingles/Spritual Stone Get",
-            "Melodies/Fanfares/Item Jingles/Item Get",
+            "Melodies/Fanfares/Item Jingles/Spiritual Stone Get",
+            "Melodies/Fanfares/Item Jingles/Small Item Get",
             "Melodies/Fanfares/Item Jingles/Medallion Get",
             "Melodies/Fanfares/Item Jingles/Song Learned",
         ],
@@ -144,15 +145,15 @@ location_lookup = {
             "Melodies/Ocarina Songs/Warp Songs/Minuet of Forest",
             "Melodies/Ocarina Songs/Warp Songs/Serenade of Water",
             "Melodies/Ocarina Songs/Warp Songs/Requiem of Spirit",
-            "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # Typo? The directory is "Nocture" instead of "Nocturne"
+            "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # The OoT3D Randomizer spells this folder "Nocture" in source/music.cpp
         ],
         'UtilitySong': [
             "Melodies/Ocarina Songs/Child Songs/Saria's Song",
             "Melodies/Ocarina Songs/Child Songs/Epona's Song",
             "Melodies/Ocarina Songs/Child Songs/Zelda's Lullaby",
-            "Melodies/Ocarina Songs/Child Songs/Sun's Song", # This directory is actually missing? Assuming it is a bug with the CIA creating the directories
             "Melodies/Ocarina Songs/Child Songs/Song of Time",
             "Melodies/Ocarina Songs/Child Songs/Song of Storms",
+            # No Sun's Song: the OoT3D Randomizer comments out its "Sun's Song" folder in source/music.cpp ("Still unshuffled because of bugs")
         ]
     },
     'high': {
@@ -178,6 +179,7 @@ location_lookup = {
         ],
         'MagicalPlace': [
             'Background Music/Event Music/File Select',
+            'Background Music/Area Themes/Interiors/Fairy Fountain',
             'Background Music/Area Themes/Interiors/Temple of Time',
             'Background Music/Event Music/Goddess Theme',
         ],
@@ -202,7 +204,7 @@ location_lookup = {
         ],
         'SpookyDungeon': [
             'Background Music/Area Themes/Dungeons/Shadow Temple',
-            "Background Music/Area Themes/Dungeons/Ganon's Tower",
+            "Background Music/Area Themes/Dungeons/Ganon's Castle",
             'Background Music/Event Music/Tower Escape',
         ],
         'BossFight': [
@@ -229,7 +231,11 @@ location_lookup = {
         'HorseRace': 'Background Music/Event Music/Horse Race',
         'Mini-game': 'Background Music/Event Music/Minigame Theme 1',
         'ShootingGallery': 'Background Music/Event Music/Minigame Theme 2',
-        'FairyFountain': 'Background Music/Event Music/File Select',
+        # On N64, NA_BGM_FILE_SELECT points to the NA_BGM_GREAT_FAIRY sequence. The 3DS has a separate file for each.
+        'FairyFountain': [
+            'Background Music/Area Themes/Interiors/Fairy Fountain',
+            'Background Music/Event Music/File Select',
+        ],
         'TempleOfTime': 'Background Music/Area Themes/Interiors/Temple of Time',
         'ChamberOfTheSages': 'Background Music/Event Music/Goddess Theme',
         'House': 'Background Music/Area Themes/Interiors/House Theme',
@@ -245,7 +251,7 @@ location_lookup = {
         'WaterTemple': 'Background Music/Area Themes/Dungeons/Water Temple',
         'SpiritTemple': 'Background Music/Area Themes/Dungeons/Spirit Temple',
         'ShadowTemple': 'Background Music/Area Themes/Dungeons/Shadow Temple',
-        'CastleUnderground': "Background Music/Area Themes/Dungeons/Ganon's Tower",
+        'CastleUnderground': "Background Music/Area Themes/Dungeons/Ganon's Castle",
         'CastleEscape': 'Background Music/Event Music/Tower Escape',
         'Battle': 'Background Music/Battle Themes/Enemy Theme',
         'MinibossBattle': 'Background Music/Battle Themes/Mini Boss',
@@ -264,8 +270,8 @@ location_lookup = {
         'IngoTheme': "Background Music/Event Music/Ingo's Theme",
         'ItemGet': "Melodies/Fanfares/Item Jingles/Item Get",
         'HeartContainerGet': "Melodies/Fanfares/Item Jingles/Heart Container Get",
-        'SpritStoneGet': "Melodies/Fanfares/Item Jingles/Spritual Stone Get",
-        'HeartPieceGet': "Melodies/Fanfares/Item Jingles/Item Get",
+        'SpiritStoneGet': "Melodies/Fanfares/Item Jingles/Spiritual Stone Get",
+        'HeartPieceGet': "Melodies/Fanfares/Item Jingles/Small Item Get",
         'MedallionGet': "Melodies/Fanfares/Item Jingles/Medallion Get",
         'LearnSong': "Melodies/Fanfares/Item Jingles/Song Learned",
         'BossDefeated': "Melodies/Fanfares/Misc Fanfares/Boss Clear",
@@ -282,18 +288,19 @@ location_lookup = {
         'MinuetOfForest': "Melodies/Ocarina Songs/Warp Songs/Minuet of Forest",
         'SerenadeOfWater': "Melodies/Ocarina Songs/Warp Songs/Serenade of Water",
         'RequiemOfSpirit': "Melodies/Ocarina Songs/Warp Songs/Requiem of Spirit",
-        'NocturneOfShadow': "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # Typo? The directory is "Nocture" instead of "Nocturne"
+        'NocturneOfShadow': "Melodies/Ocarina Songs/Warp Songs/Nocture of Shadow", # The OoT3D Randomizer spells this folder "Nocture" in source/music.cpp
         'SariasSong': "Melodies/Ocarina Songs/Child Songs/Saria's Song",
         'EponasSong': "Melodies/Ocarina Songs/Child Songs/Epona's Song",
         'ZeldasLullaby': "Melodies/Ocarina Songs/Child Songs/Zelda's Lullaby",
-        'SunsSong': "Melodies/Ocarina Songs/Child Songs/Sun's Song", # This directory is actually missing? Assuming it is a bug with the CIA creating the directories
         'SongOfTime': "Melodies/Ocarina Songs/Child Songs/Song of Time",
         'SongOfStorms': "Melodies/Ocarina Songs/Child Songs/Song of Storms",
+        'SunsSong': None, # The OoT3D Randomizer comments out its "Sun's Song" folder in source/music.cpp ("Still unshuffled because of bugs")
     }
 }
 
 import os
 import shutil
+import sys
 
 def parse_meta_file( root, file ):
 
@@ -307,10 +314,32 @@ def parse_meta_file( root, file ):
 
     song_name = lines[0]
     instrument_set = lines[1]
-    seq_type = lines[2] if len(lines) >= 3 else 'bgm'
-    groups = [ g.strip() for g in lines[3].split( ',' ) ] if len( lines ) >= 4 else []
+    # Some .meta files use "BGM" or "Fanfare"
+    seq_type = lines[2].strip().lower() if len(lines) >= 3 else 'bgm'
+    # Drop empty entries so that an empty groups line falls back to the defaults
+    groups = [ g.strip() for g in lines[3].split( ',' ) if g.strip() ] if len( lines ) >= 4 else []
 
     return song_name, instrument_set, seq_type, groups
+
+def node_path( directory ):
+    """
+    The OoT3D Randomizer only reads a folder as a music category when its name starts with "!"
+    (MusicCategoryNode::GetFullPath in source/custom_music/sequence_data.cpp), so
+    "Background Music/Area Themes" becomes "!Background Music/!Area Themes"
+    """
+    return '/'.join( '!' + part for part in directory.split( '/' ) )
+
+def copy_song( root, seq_file, directory ):
+
+    destination = './Custom Music/' + node_path( directory )
+
+    os.makedirs( destination, exist_ok=True )
+
+    shutil.copy( './' + root + '/' + seq_file, destination )
+
+    if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
+
+        shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), destination )
 
 def move_to_3d():
 
@@ -335,7 +364,8 @@ def move_to_3d():
                 song_name, instrument_set, seq_type, seq_groups = parse_meta_file( root.replace( 'Converted/', '' ), seq_file.replace( '.bcseq', '.meta' ) )
             
             except Exception as e:
-                print( e.output )
+                print( root + '/' + seq_file + ': could not read the .meta file: ' + str( e ), file=sys.stderr )
+                continue
 
             # Try to set some defaults, just in case
             if not seq_groups: 
@@ -356,51 +386,15 @@ def move_to_3d():
                 high = location_lookup.get( 'high' ).get( group )
                 exact = location_lookup.get( 'exact' ).get( group )
 
-                if low:
+                if not any( group in level for level in location_lookup.values() ):
+                    print( root + '/' + seq_file + ': unknown group ' + group, file=sys.stderr )
 
-                    for directory in low:
+                if isinstance( exact, str ):
+                    exact = [ exact ]
 
-                        os.makedirs( './Custom Music/' + directory, exist_ok=True )
+                for directory in ( low or [] ) + ( medium or [] ) + ( high or [] ) + ( exact or [] ):
 
-                        shutil.copy( './' + root + '/' + seq_file, './Custom Music/' + directory )
-
-                        if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
-
-                            shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), './Custom Music/' + directory )
-
-                if medium:
-
-                    for directory in medium:
-
-                        os.makedirs( './Custom Music/' + directory, exist_ok=True )
-
-                        shutil.copy( './' + root + '/' + seq_file, './Custom Music/' + directory )
-
-                        if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
-
-                            shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), './Custom Music/' + directory )
-
-                if high:
-
-                    for directory in high:
-
-                        os.makedirs( './Custom Music/' + directory, exist_ok=True )
-
-                        shutil.copy( './' + root + '/' + seq_file, './Custom Music/' + directory )
-
-                        if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
-
-                            shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), './Custom Music/' + directory )
-
-                if exact:
-
-                    os.makedirs( './Custom Music/' + exact, exist_ok=True )
-
-                    shutil.copy( './' + root + '/' + seq_file, './Custom Music/' + exact )
-
-                    if os.path.exists( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ) ) :
-
-                        shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), './Custom Music/' + exact )
+                    copy_song( root, seq_file, directory )
 
     return True
 
