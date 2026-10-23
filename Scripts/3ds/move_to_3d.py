@@ -324,11 +324,44 @@ def copy_song( root, seq_file, directory ):
 
         shutil.copy( './' + root + '/' + seq_file.replace( '.bcseq', '.cmeta' ), destination )
 
-def move_to_3d():
+def read_song_list( path ):
+    """
+    Returns the song keys in a song list written by Scripts/Generate Song List.py, where each song is a line
+    "key: <song name>" and the song name is the first line of the song's .meta file. Lines that are not keys (the folder
+    names) are ignored.
+    """
+
+    keys = set()
+
+    with open( path, 'r', encoding='utf-8-sig' ) as song_list_file:
+        for line in song_list_file:
+            line = line.strip()
+            if line.startswith( 'key:' ):
+                # Generate Song List.py keeps the byte order mark that starts some .meta files in their key
+                keys.add( line[ len( 'key:' ): ].strip().lstrip( '\ufeff' ) )
+
+    return keys
+
+def move_to_3d( song_list_path=None ):
+    """
+    Copies the converted songs into the Custom Music folders of their groups. With song_list_path, only the songs whose
+    keys are in that song list are copied.
+    """
 
     if not os.path.exists( 'Converted/data/Music' ):
         print( 'No Converted/data/Music directory found' )
         return False
+
+    keys = None
+
+    if song_list_path is not None:
+
+        if not os.path.exists( song_list_path ):
+            print( 'No song list found at ' + song_list_path )
+            return False
+
+        keys = read_song_list( song_list_path )
+        found_keys = set()
 
     # The .meta file of each converted song, from its .seq and .meta files or its .ootrs archive in data/Music
     songs_by_path = { song.path: song for song in music_files.find_songs( 'data/Music' ) }
@@ -351,6 +384,13 @@ def move_to_3d():
                 continue
 
             song_name, instrument_set, seq_type, seq_groups = song.meta()
+
+            if keys is not None:
+
+                if song_name not in keys:
+                    continue
+
+                found_keys.add( song_name )
 
             # Try to set some defaults, just in case
             if not seq_groups: 
@@ -381,11 +421,22 @@ def move_to_3d():
 
                     copy_song( root, seq_file, directory )
 
+    if keys is not None:
+
+        # These songs were skipped or failed in convert_to_3d.py, or their key is spelled differently in the list
+        for key in sorted( keys - found_keys ):
+            print( song_list_path + ': no converted song has the key ' + key, file=sys.stderr )
+
+        print( str( len( found_keys ) ) + ' of the ' + str( len( keys ) ) + ' songs in ' + song_list_path + ' have been organized' )
+
     return True
 
 def main():
 
-    moved_to_3d = move_to_3d()
+    # Usage, from the repository root: python Scripts/3ds/move_to_3d.py [song list]
+    song_list_path = sys.argv[1] if len( sys.argv ) > 1 else None
+
+    moved_to_3d = move_to_3d( song_list_path )
 
     if moved_to_3d:
         print("All songs have been organized for Oot3D Rando")
