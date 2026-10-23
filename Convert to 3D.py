@@ -28,7 +28,7 @@ instrument_set_lookup = {
     '0x17': 27, # BANK_KOORI
     '0x18': 28, # BANK_YAMI
     '0x19': 29, # BANK_MIZU
-    '0x1A': 0, # This one is labeled "Blank?" and unused on the 64 side. May as well assign to BANK_PLAYER as a backup
+    '0x1A': 30, # BANK_SARIA. Unused on the 64 side, but its two pianos match the two instruments in BANK_SARIA
     '0x1B': 31, # BANK_GERUDO
     '0x1C': 32, # BANK_KUSURI
     '0x1D': 33, # BANK_KOTAKE
@@ -160,10 +160,11 @@ instrument_list_lookup = {
     },
 
     # Fire Temple
+    # 3DS indices match the 3DS NA_BGM_FIRE_DUNGEON sequence. Slots 0x0C and 0x0D are the same instrument, which the 3DS has once.
     '0x0A': {
-        '0x00': 0, # Islamic Chant (1.0 only?)
-        '0x01': 1, # Islamic Chant (1.0 only?)
-        '0x02': 2, # Islamic Chant (1.0 only?)
+        '0x00': False, # Chant (N64 1.0 and 1.1 only)
+        '0x01': False, # Chant (N64 1.0 and 1.1 only)
+        '0x02': False, # Chant (N64 1.0 and 1.1 only)
         '0x03': 3, # Xylophone
         '0x04': False, # Empty
         '0x05': 4, # Wind,
@@ -171,10 +172,10 @@ instrument_list_lookup = {
         '0x07': False, # Empty
         '0x08': False, # Empty
         '0x09': False, # Empty
-        '0x0A': 6, # Choir (Other versions only?)
-        '0x0B': 7, # Choir (Other versions only?)
-        '0x0C': 8, # Choir (Other versions only?)
-        '0x0D': 9, # Choir (Other versions only?)
+        '0x0A': 1, # Choir (not in N64 1.0 and 1.1)
+        '0x0B': 2, # Choir (not in N64 1.0 and 1.1)
+        '0x0C': 0, # Choir (not in N64 1.0 and 1.1)
+        '0x0D': 0, # Choir (not in N64 1.0 and 1.1)
     },
 
     # Dodongo's Cavern
@@ -242,13 +243,14 @@ instrument_list_lookup = {
     },
 
     # Spirit Temple
+    # The 3DS bank has these in a different order, found by matching each instrument's key ranges, sample lengths and pitch
     '0x10': {
-        '0x00': 0, # Voice pad
-        '0x01': 1, # Synth
-        '0x02': 2, # Egyptian flute
-        '0x03': 3, # Clap
-        '0x04': 4, # Synth
-        '0x05': 5, # Egyptian flute
+        '0x00': 5, # Voice pad
+        '0x01': 0, # Synth
+        '0x02': 1, # Egyptian flute
+        '0x03': 2, # Clap
+        '0x04': 3, # Synth
+        '0x05': 4, # Egyptian flute
         '0x06': False, # Empty
         '0x07': False, # Empty
         '0x08': False, # Empty
@@ -365,18 +367,19 @@ instrument_list_lookup = {
     },
 
     # Water Temple
+    # The 3DS bank has these in a different order, found by matching each instrument's key ranges, sample lengths and pitch
     '0x19': {
         '0x00': 0, # Flute
-        '0x01': 1, # Wind chime
+        '0x01': 5, # Wind chime
         '0x02': False, # Empty
         '0x03': False, # Empty
-        '0x04': 2, # Bell pad
-        '0x05': 3, # Wood chime
-        '0x06': 4, # Voice pad
-        '0x07': 5, # Koto
+        '0x04': 1, # Bell pad
+        '0x05': 2, # Wood chime
+        '0x06': 3, # Voice pad
+        '0x07': 4, # Koto
     },
 
-    # Unused
+    # Unused on the N64. Its two pianos match the two instruments in BANK_SARIA.
     '0x1A': {
         '0x00': False, # Empty
         '0x01': False, # Empty
@@ -412,12 +415,13 @@ instrument_list_lookup = {
     },
 
     # Lakeside Laboratory
+    # The 3DS bank has these in a different order, found by matching each instrument's key ranges, sample lengths and pitch
     '0x1C': {
         '0x00': 0, # Koto
         '0x01': 1, # Drum
         '0x02': False, # Empty
-        '0x03': 2, # Drum 2
-        '0x04': 3, # Wind chime
+        '0x03': 3, # Drum 2
+        '0x04': 2, # Wind chime
     },
 
     # Kotake and Koume
@@ -446,15 +450,16 @@ instrument_list_lookup = {
     },
 
     # Inside Ganon's Castle
+    # 3DS indices match the 3DS NA_BGM_UNDERGROUND sequence
     '0x1F': {
         '0x00': False, # Empty
         '0x01': 0, # Wind
         '0x02': 1, # Sounds 1
         '0x03': 2, # Choir
-        '0x04': 3, # Piano
-        '0x05': 4, # Piano
+        '0x04': 4, # Piano
+        '0x05': 5, # Piano
         '0x06': False, # Empty
-        '0x07': 5, # Sounds 2
+        '0x07': 3, # Sounds 2
     },
 
     # Ganondorf Battle
@@ -478,6 +483,7 @@ instrument_list_lookup = {
     },
 
     # Ending Sequence 1
+    # 3DS indices match the 3DS NA_BGM_STAFF_1 and NA_BGM_STAFF_3 sequences. Slot 0x0D matches by key ranges, sample lengths and pitch.
     '0x21': {
         '0x00': 0, # Malon Voice
         '0x01': 1, # Malon Voice
@@ -492,9 +498,9 @@ instrument_list_lookup = {
         '0x0A': 8, # Strings
         '0x0B': 9, # Strings
         '0x0C': False, # Empty
-        '0x0D': 10, # Bell
-        '0x0E': 11, # Harp
-        '0x0F': 12, # Choir
+        '0x0D': 12, # Bell
+        '0x0E': 10, # Harp
+        '0x0F': 11, # Choir
     },
 
     # Ending Sequence 2
