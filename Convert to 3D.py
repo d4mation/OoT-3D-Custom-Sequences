@@ -1510,30 +1510,8 @@ import re
 import xml.etree.ElementTree as ElementTree
 
 import bcseq
+import music_files
 import n64_to_cseq
-
-def parse_meta_file( root, file ):
-
-    path = root + "/" + file
-
-    # Some .meta files differ from their .seq file only in letter case, which Windows ignores and Linux does not
-    if not os.path.exists( path ):
-        matches = [ name for name in os.listdir( root ) if name.lower() == file.lower() ]
-        if matches:
-            path = root + "/" + matches[0]
-
-    with open( path, 'r', encoding='utf-8' ) as meta_file:
-        lines = meta_file.readlines()
-
-    # Strip newline(s)
-    lines = [ line.rstrip() for line in lines ]
-
-    song_name = lines[0]
-    instrument_set = lines[1]
-    seq_type = lines[2] if len(lines) >= 3 else 'bgm'
-    groups = [ g.strip() for g in lines[3].split( ',' ) ] if len( lines ) >= 4 else []
-
-    return song_name, instrument_set, seq_type, groups
 
 def load_abi_commands( abi_path ):
     """
@@ -1928,128 +1906,142 @@ def convert_to_3d():
     os.makedirs( './tmp', exist_ok=True )
     os.makedirs( './Custom Music', exist_ok=True )
 
-    songs = os.walk( 'data/Music' )
+    songs = music_files.find_songs( 'data/Music' )
 
     failure_count = 0
     skipped_count = 0
 
-    for root, dirs, files in songs:
-        
-        for seq_file in files:
+    for song in songs:
 
-            if seq_file.endswith( '.meta' ):
-                continue
+        root = song.root
+        seq_file = song.name + '.seq'
 
-            seq_type = 'bgm'
-            seq_groups = []
-            instrument_set = 0x9001
+        if song.problem:
+            print( song.path + ': ' + song.problem, file=sys.stderr )
+            failure_count = failure_count + 1
+            continue
+
+        song_name, instrument_set, seq_type, seq_groups = song.meta()
+
+        if instrument_set == '-':
+            print( song.path + ': skipped, it brings its own instrument bank, and the 3DS can only use its own banks', file=sys.stderr )
+            skipped_count = skipped_count + 1
+            continue
+
+        try:
+
+            instrument_set = "0x{:02X}".format( int( instrument_set, 16 ) )
+
+        except ValueError:
+
+            print( song.path + ': the .meta file has no instrument set on its second line', file=sys.stderr )
+            failure_count = failure_count + 1
+            continue
+
+        try:
+
+            seq_path = song.seq_path( './tmp' )
+
+        except Exception as e:
+
+            print( song.path + ': could not read the .seq file: ' + repr( e ), file=sys.stderr )
+            failure_count = failure_count + 1
+            continue
+
+        if instrument_set not in instrument_list_lookup:
+            print( root + '/' + seq_file + ': instrument set ' + str( instrument_set ) + ' has no entry in instrument_list_lookup', file=sys.stderr )
+            failure_count = failure_count + 1
+            continue
+
+        try:
+
+            unmappable = find_unmappable_instruments( seq_path, instrument_set )
+
+        except Exception as e:
+            print( root + '/' + seq_file + ': could not check the instruments: ' + str( e ), file=sys.stderr )
+            failure_count = failure_count + 1
+            continue
+
+        if unmappable:
+            print( root + '/' + seq_file + ': skipped, ' + '; '.join( unmappable ), file=sys.stderr )
+            skipped_count = skipped_count + 1
+            continue
+
+        # Skip if already processed
+        if not os.path.exists( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) ) :
+
+            os.makedirs( './tmp/' + root, exist_ok=True )
+
+            cseq_path = './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' )
 
             try:
 
-                song_name, instrument_set, seq_type, seq_groups = parse_meta_file( root, seq_file.replace( '.seq', '.meta' ) )
-
-                instrument_set = "0x{:02X}".format( int( instrument_set, 16 ) )
-            
-            except Exception as e:
-
-                print( root + '/' + seq_file + ': could not read the .meta file: ' + str( e ), file=sys.stderr )
-                failure_count = failure_count + 1
-                continue
-
-            if instrument_set not in instrument_list_lookup:
-                print( root + '/' + seq_file + ': instrument set ' + str( instrument_set ) + ' has no entry in instrument_list_lookup', file=sys.stderr )
-                failure_count = failure_count + 1
-                continue
-
-            try:
-
-                unmappable = find_unmappable_instruments( './' + root + '/' + seq_file, instrument_set )
+                loop_ticks, unsupported = n64_to_cseq.convert( seq_path, cseq_path, sample_lookup.get( instrument_set ) )
 
             except Exception as e:
-                print( root + '/' + seq_file + ': could not check the instruments: ' + str( e ), file=sys.stderr )
+                print( root + '/' + seq_file + ': seq_to_cseq failure: ' + repr( e ), file=sys.stderr )
                 failure_count = failure_count + 1
                 continue
 
-            if unmappable:
-                print( root + '/' + seq_file + ': skipped, ' + '; '.join( unmappable ), file=sys.stderr )
+            if unsupported:
+                print( root + '/' + seq_file + ': skipped, ' + unsupported, file=sys.stderr )
                 skipped_count = skipped_count + 1
                 continue
 
-            # Skip if already processed
-            if not os.path.exists( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) ) :
+            try:
 
-                os.makedirs( './tmp/' + root, exist_ok=True )
+                if loop_ticks and not add_loop_to_cseq( cseq_path, *loop_ticks ):
+                    print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
 
-                cseq_path = './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' )
+            except Exception as e:
+                print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
+                print( 'cseq loop failure', file=sys.stderr )
+                print( e, file=sys.stderr )
+                failure_count = failure_count + 1
+                continue
 
-                try:
+            try:
 
-                    loop_ticks, unsupported = n64_to_cseq.convert( './' + root + '/' + seq_file, cseq_path, sample_lookup.get( instrument_set ) )
+                remap_problems = remap_cseq_instruments( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), instrument_set )
 
-                except Exception as e:
-                    print( root + '/' + seq_file + ': seq_to_cseq failure: ' + repr( e ), file=sys.stderr )
-                    failure_count = failure_count + 1
-                    continue
+            except Exception as e:
+                print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
+                print( 'cseq instrument fix failure', file=sys.stderr )
+                print( e, file=sys.stderr )
+                failure_count = failure_count + 1
+                continue
 
-                if unsupported:
-                    print( root + '/' + seq_file + ': skipped, ' + unsupported, file=sys.stderr )
-                    skipped_count = skipped_count + 1
-                    continue
+            if remap_problems:
+                print( root + '/' + seq_file + ': skipped, ' + '; '.join( remap_problems ), file=sys.stderr )
+                skipped_count = skipped_count + 1
+                continue
 
-                try:
+            try:
 
-                    if loop_ticks and not add_loop_to_cseq( cseq_path, *loop_ticks ):
-                        print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
+                bcseq.assemble_file( cseq_path, './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) )
 
-                except Exception as e:
-                    print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
-                    print( 'cseq loop failure', file=sys.stderr )
-                    print( e, file=sys.stderr )
-                    failure_count = failure_count + 1
-                    continue
+            except Exception as e:
+                print( root + '/' + seq_file + ': cseq_to_bcseq failure: ' + repr( e ), file=sys.stderr )
+                failure_count = failure_count + 1
+                continue
 
-                try:
+        os.makedirs( './Converted/' + root, exist_ok=True )
 
-                    remap_problems = remap_cseq_instruments( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), instrument_set )
+        shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ), './Converted/' + root )
 
-                except Exception as e:
-                    print( '.tmp/' + root + '/' + seq_file, file=sys.stderr )
-                    print( 'cseq instrument fix failure', file=sys.stderr )
-                    print( e, file=sys.stderr )
-                    failure_count = failure_count + 1
-                    continue
+        sound_bank = instrument_set_lookup.get( instrument_set )
 
-                if remap_problems:
-                    print( root + '/' + seq_file + ': skipped, ' + '; '.join( remap_problems ), file=sys.stderr )
-                    skipped_count = skipped_count + 1
-                    continue
+        # Bank 0 is valid, so only skip sets with no entry
+        if sound_bank is not None:
 
-                try:
+            # The OoT3D Randomizer reads .cmeta as "key=value" text lines (source/custom_music/cmeta_interpreter.cpp)
+            cmeta = open( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), 'w', encoding='utf-8' )
 
-                    bcseq.assemble_file( cseq_path, './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) )
+            cmeta.write( 'banks=' + str( sound_bank ) + '\n' )
 
-                except Exception as e:
-                    print( root + '/' + seq_file + ': cseq_to_bcseq failure: ' + repr( e ), file=sys.stderr )
-                    failure_count = failure_count + 1
-                    continue
+            cmeta.close()
 
-            os.makedirs( './Converted/' + root, exist_ok=True )
-
-            shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ), './Converted/' + root )
-
-            sound_bank = instrument_set_lookup.get( instrument_set )
-
-            # Bank 0 is valid, so only skip sets with no entry
-            if sound_bank is not None:
-
-                # The OoT3D Randomizer reads .cmeta as "key=value" text lines (source/custom_music/cmeta_interpreter.cpp)
-                cmeta = open( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), 'w', encoding='utf-8' )
-
-                cmeta.write( 'banks=' + str( sound_bank ) + '\n' )
-
-                cmeta.close()
-
-                shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), './Converted/' + root )
+            shutil.copy( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), './Converted/' + root )
 
     print( "%d failed" % failure_count )
     print( "%d skipped" % skipped_count )

@@ -302,30 +302,7 @@ import os
 import shutil
 import sys
 
-def parse_meta_file( root, file ):
-
-    path = root + "/" + file
-
-    # Some .meta files differ from their .seq file only in letter case, which Windows ignores and Linux does not
-    if not os.path.exists( path ):
-        matches = [ name for name in os.listdir( root ) if name.lower() == file.lower() ]
-        if matches:
-            path = root + "/" + matches[0]
-
-    with open( path, 'r', encoding='utf-8' ) as meta_file:
-        lines = meta_file.readlines()
-
-    # Strip newline(s)
-    lines = [ line.rstrip() for line in lines ]
-
-    song_name = lines[0]
-    instrument_set = lines[1]
-    # Some .meta files use "BGM" or "Fanfare"
-    seq_type = lines[2].strip().lower() if len(lines) >= 3 else 'bgm'
-    # Drop empty entries so that an empty groups line falls back to the defaults
-    groups = [ g.strip() for g in lines[3].split( ',' ) if g.strip() ] if len( lines ) >= 4 else []
-
-    return song_name, instrument_set, seq_type, groups
+import music_files
 
 def node_path( directory ):
     """
@@ -353,25 +330,27 @@ def move_to_3d():
         print( 'No Converted/data/Music directory found' )
         return False
 
+    # The .meta file of each converted song, from its .seq and .meta files or its .ootrs archive in data/Music
+    songs_by_path = { song.path: song for song in music_files.find_songs( 'data/Music' ) }
+
     songs = os.walk( 'Converted/data/Music' )
 
     for root, dirs, files in songs: 
 
+        root = root.replace( os.sep, '/' )
+
         for seq_file in files:
 
-            if seq_file.endswith( '.cmeta' ):
+            if not seq_file.endswith( '.bcseq' ):
                 continue
 
-            seq_type = 'bgm'
-            seq_groups = []
+            song = songs_by_path.get( root.replace( 'Converted/', '', 1 ) + '/' + seq_file[:-len( '.bcseq' )] )
 
-            try:
-
-                song_name, instrument_set, seq_type, seq_groups = parse_meta_file( root.replace( 'Converted/', '' ), seq_file.replace( '.bcseq', '.meta' ) )
-            
-            except Exception as e:
-                print( root + '/' + seq_file + ': could not read the .meta file: ' + str( e ), file=sys.stderr )
+            if song is None or song.problem:
+                print( root + '/' + seq_file + ': could not read the .meta file of this song in data/Music', file=sys.stderr )
                 continue
+
+            song_name, instrument_set, seq_type, seq_groups = song.meta()
 
             # Try to set some defaults, just in case
             if not seq_groups: 
