@@ -275,20 +275,21 @@ instrument_list_lookup = {
     },
 
     # Warp Songs
+    # Slots 0x02 and 0x03 are empty in the OoT decomp (assets/xml/audio/soundfonts/Soundfont_18.xml), and BANK_OK has 8 instruments
     '0x12': {
         '0x00': 0, # Harp
         '0x01': 1, # Harp
-        '0x02': 2, # Harp
-        '0x03': 3, # Harp
-        '0x04': 4, # Strings
-        '0x05': 5, # Ocarina
+        '0x02': False, # Empty
+        '0x03': False, # Empty
+        '0x04': 2, # Strings
+        '0x05': 3, # Ocarina
         '0x06': False, # Empty
         '0x07': False, # Empty
-        '0x08': 6, # Glockenspiel
+        '0x08': 4, # Glockenspiel
         '0x09': False, # Empty
-        '0x0A': 7, # Strings
-        '0x0B': 8, # Strings
-        '0x0C': 9, # Pizzacato Strings
+        '0x0A': 5, # Strings
+        '0x0B': 6, # Strings
+        '0x0C': 7, # Pizzacato Strings
     },
 
     # Goddess Cutscene
