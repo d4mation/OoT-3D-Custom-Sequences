@@ -6,6 +6,11 @@ instrument in each bank, and each key plays a sample at a pitch that depends on 
 different keys, often in reverse order, so each N64 drum is matched to the 3DS key that plays the same sample at the same
 pitch.
 
+The result was checked against Kewlan's drum table for BANK_ORCHE, BANK_STAFF and BANK_STAFF2
+(https://github.com/Kewlan/OoT3D-Custom-Sequences/blob/main/Helper%20Tools/Drum%20Conversion%20Info.txt). It agrees
+in all three banks except for N64 notes dn1 - an1. That table maps cs1 - an1 to 3DS keys ds1 - gn0, and the sample
+pitches match one note higher, dn1 - as1 to ds1 - gn0. The ROM and QueenSound.bcsar decide every entry.
+
 sample_lookup: The loop end and tuning of every N64 instrument and drum sample. A note with a delay of 0 plays its whole
 sample, and its layer waits for the sample to end, so n64_to_cseq.py needs the sample length to time it.
 
