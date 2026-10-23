@@ -306,6 +306,12 @@ def parse_meta_file( root, file ):
 
     path = root + "/" + file
 
+    # Some .meta files differ from their .seq file only in letter case, which Windows ignores and Linux does not
+    if not os.path.exists( path ):
+        matches = [ name for name in os.listdir( root ) if name.lower() == file.lower() ]
+        if matches:
+            path = root + "/" + matches[0]
+
     with open( path, 'r', encoding='utf-8' ) as meta_file:
         lines = meta_file.readlines()
 
