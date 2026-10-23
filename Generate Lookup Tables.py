@@ -1,16 +1,20 @@
 """
-Generates drum_note_lookup for Convert to 3D.py.
+Generates drum_note_lookup and sample_lookup for Convert to 3D.py.
 
-On the N64, each drum note plays one sample at a fixed pitch. On the 3DS, the drum kit is the last instrument in each
-bank, and each key plays a sample at a pitch that depends on the key. The 3DS kits put the drums on different keys, often
-in reverse order, so each N64 drum is matched to the 3DS key that plays the same sample at the same pitch.
+drum_note_lookup: On the N64, each drum note plays one sample at a fixed pitch. On the 3DS, the drum kit is the last
+instrument in each bank, and each key plays a sample at a pitch that depends on the key. The 3DS kits put the drums on
+different keys, often in reverse order, so each N64 drum is matched to the 3DS key that plays the same sample at the same
+pitch.
+
+sample_lookup: The loop end and tuning of every N64 instrument and drum sample. A note with a delay of 0 plays its whole
+sample, and its layer waits for the sample to end, so n64_to_cseq.py needs the sample length to time it.
 
 Requires:
 - The OoT MQ debug ROM (the version the 3DS banks match), uncompressed, as used by Ship of Harkinian
 - The .sf2 files that caesar (https://github.com/kr3nshaw/caesar) exports from the 3DS QueenSound.bcsar, one per bank,
   in <folder>/<BANK_NAME>/<BANK_NAME>.sf2
 
-Usage: python "Generate Drum Lookup.py" <MQ debug ROM> <caesar output folder>
+Usage: python "Generate Lookup Tables.py" <MQ debug ROM> <caesar output folder>
 """
 
 import math
@@ -52,9 +56,9 @@ with drums, and 3 semitones skips 79.
 PITCH_TOLERANCE = 3.05
 
 
-def read_n64_drums( rom, font_index ):
+def find_font( rom, font_index ):
     """
-    Returns { drum index: ( sample length in frames, pitch in semitones ) }
+    Returns ( ROM offset of the soundfont, instrument count, drum count )
     """
 
     def segment( index ):
@@ -66,9 +70,65 @@ def read_n64_drums( rom, font_index ):
     table = code + ( MQ_DEBUG_SOUNDFONT_TABLE - MQ_DEBUG_CODE_VRAM )
     entry = table + 16 + font_index * 16
     font_offset = struct.unpack_from( '>I', rom, entry )[0]
-    drum_count = rom[ entry + 13 ]
 
-    base = audiobank + font_offset
+    return audiobank + font_offset, rom[ entry + 12 ], rom[ entry + 13 ]
+
+
+def read_tuned_sample( rom, base, offset ):
+    """
+    Returns ( loop end, tuning ) of the TunedSample at base + offset, or None if it has no sample
+    """
+
+    sample_offset, tuning = struct.unpack_from( '>If', rom, base + offset )
+
+    if sample_offset == 0:
+        return None
+
+    loop_offset = struct.unpack_from( '>I', rom, base + sample_offset + 8 )[0]
+    loop_end = struct.unpack_from( '>I', rom, base + loop_offset + 4 )[0]
+
+    return ( loop_end, tuning )
+
+
+def read_n64_samples( rom, font_index ):
+    """
+    Returns { 'instruments': { slot: ( normal range low, normal range high, low, normal, high ) },
+    'drums': { drum index: ( loop end, tuning ) } }, where low, normal and high are ( loop end, tuning ) or None
+    """
+
+    base, instrument_count, drum_count = find_font( rom, font_index )
+    instruments = {}
+    drums = {}
+
+    for slot in range( instrument_count ):
+
+        offset = struct.unpack_from( '>I', rom, base + 8 + slot * 4 )[0]
+
+        if offset == 0:
+            continue
+
+        range_low, range_high = rom[ base + offset + 1 ], rom[ base + offset + 2 ]
+        tuned_samples = [ read_tuned_sample( rom, base, offset + 8 + index * 8 ) for index in range( 3 ) ]
+        instruments[ slot ] = ( range_low, range_high, *tuned_samples )
+
+    drum_list = struct.unpack_from( '>I', rom, base )[0]
+
+    for index in range( drum_count ):
+
+        offset = struct.unpack_from( '>I', rom, base + drum_list + index * 4 )[0]
+
+        if offset != 0:
+            drums[ index ] = read_tuned_sample( rom, base, offset + 4 )
+
+    return { 'instruments': instruments, 'drums': drums }
+
+
+def read_n64_drums( rom, font_index ):
+    """
+    Returns { drum index: ( sample length in frames, pitch in semitones ) }
+    """
+
+    base, instrument_count, drum_count = find_font( rom, font_index )
     drum_list = struct.unpack_from( '>I', rom, base )[0]
     drums = {}
 
@@ -235,6 +295,37 @@ def main():
 
         for start in range( 0, len( items ), 8 ):
             print( '            ' + ', '.join( items[ start:start + 8 ] ) + ',' )
+
+        print( '        },' )
+        print( '    },' )
+
+    print( '}' )
+    print()
+
+    # Tunings are 32-bit floats in the ROM. repr() of the unpacked value converts back to the same 32-bit float.
+    def sample_text( sample ):
+        return 'None' if sample is None else '( ' + str( sample[0] ) + ', ' + repr( sample[1] ) + ' )'
+
+    print( 'sample_lookup = {' )
+
+    for instrument_set in sorted( convert.instrument_list_lookup ):
+
+        samples = read_n64_samples( rom, int( instrument_set, 16 ) )
+
+        print( "    '" + instrument_set + "': {" )
+        print( "        'instruments': {" )
+
+        for slot, ( range_low, range_high, low, normal, high ) in sorted( samples[ 'instruments' ].items() ):
+            print( '            ' + str( slot ) + ': ( ' + str( range_low ) + ', ' + str( range_high ) + ', '
+                   + ', '.join( sample_text( sample ) for sample in ( low, normal, high ) ) + ' ),' )
+
+        print( '        },' )
+        print( "        'drums': {" )
+
+        items = [ str( drum ) + ': ' + sample_text( sample ) for drum, sample in sorted( samples[ 'drums' ].items() ) ]
+
+        for start in range( 0, len( items ), 4 ):
+            print( '            ' + ', '.join( items[ start:start + 4 ] ) + ',' )
 
         print( '        },' )
         print( '    },' )
