@@ -1,21 +1,20 @@
-# Custom Ocarina of Time Music Sequences
-The .zip here contains the resources required for custom music sequences in The Legend of Zelda: Ocarina of Time while using the Ocarina of Time Randomizer.
+# Custom Ocarina of Time 3D Music Sequences
+This repository converts the custom music sequences from [OoT-Custom-Sequences](https://github.com/DaruniasJoy/OoT-Custom-Sequences), which are made for the N64 [Ocarina of Time Randomizer](https://ootrandomizer.com), for the [Ocarina of Time 3D Randomizer](https://github.com/gamestabled/OoT3D_Randomizer).
+
+The songs in `data/Music` come from OoT-Custom-Sequences. The `Converted` folder has the songs converted to the 3DS sequence format, and the scripts in `Scripts/3ds` do the converting and sort the songs into the folders the randomizer reads.
 
 # Installation
-Download [this zip file](https://github.com/DaruniasJoy/OoT-Custom-Sequences/archive/refs/heads/Custom-Music-2.0.zip) and extract it. Then move the contents of the "Music" that was inside that zip file into the "Music" folder in the "data" folder next to the randomizer script. If you are using the bundled download version of the randomizer the folder is located in the "resources/app/python/data" folder next to the executable file. If done correctly, the Music folder should now have several subfolders in it, each with the name of a different game or series.
+The scripts need Python 3 and no other programs. Run them from the repository folder.
 
-If you play an older Version of the Randomizer (OoTR v7.1 or older) that does not support the .ootrs format you find your Sequences [here](https://github.com/DaruniasJoy/OoT-Custom-Sequences/archive/refs/heads/Old-Custom-Music-Format.zip) 
+1. Download [this zip file](https://github.com/d4mation/OoT-3D-Custom-Sequences/archive/refs/heads/master.zip) and extract it.
+2. Sort the songs into folders: `python Scripts/3ds/move_to_3d.py`
 
-# Requests
-If there is a song you would like converted to AudioSeq format and added to the repository, feel free to request it [here](https://docs.google.com/forms/d/e/1FAIpQLSe17AuRzGGx7WaaX70hggeAYDD-NmXA9rOI2QIKbPCQIhR2tg/viewform). You can also [open an Issue](https://github.com/DaruniasJoy/OoT-Custom-Sequences/issues/new) and request it there.
+   This copies each converted song into a `Custom Music` folder for every location its music groups allow, using the folder names the randomizer reads.
+3. Copy the contents of the `Custom Music` folder into `SD:/OoT3DR/Custom Music/` on the SD card. The randomizer also needs the game's sound archive, `QueenSound.bcsar`, in that folder. It is in the `romfs/sound` folder of a dump of the game.
+4. Turn on the "Custom Music" option in the randomizer's cosmetic settings.
 
-# Issues with Sequences
-
-Should you find yourself or in a stream that a track is too loud or too quiet, please also feel free to either [open an Issue](https://github.com/DaruniasJoy/OoT-Custom-Sequences/issues/new) or contact us in [Discord](https://discord.gg/EVpd499gkS) in the appropriate channel.
-
-# Customize your own Cosmetic file
-
-To get the song list of your current version of the project you can launch the script `Generate Song List.py`, this one will create a `song_list.txt` file with all song sorted by license and the required key to complete in the cosmetic json file.
+# Choosing songs
+To use only some of the songs, create a song list with `python "Scripts/Generate Song List.py"`. It writes `song_list.txt`, with every song sorted by folder and the key that identifies it:
 
 ```txt
 - Music
@@ -24,50 +23,47 @@ To get the song list of your current version of the project you can launch the s
              key: Kingdom Hearts - Dearly Beloved
              key: Kingdom Hearts - Gummi Ship #1
              key: Kingdom Hearts - Hollow Bastion
-             key: KH - Dearly Beloved
-             key: Kingdom Hearts - Traverse Town
-             key: Kingdom Hearts - Dive to the Heart
         - Kingdom Hearts 2
              key: Kingdom Hearts 2 Final Mix - Sora's Theme
              key: Kingdom Hearts II - Sinister Sundown
-             key: Kingdom Hearts 2 Final Mix - Cavern of Remembrance
-             key: Kingdom Hearts II - The 13th Struggle
     - StarTropics
          key: StarTropics - Miracola Village
-         key: Dungeon - StarTropics
 ...
 ...
 ```
 
-# Submissions
-The best way to submit your own AudioSeqs is by following the [GitKraken guide on the randomizer's wiki](https://wiki.ootrandomizer.com/index.php?title=GitKraken). As long as the AudioSeq works and doesn't have any objectively bad audio issues it will be merged in.
+Delete the `key:` lines of the songs you do not want, and pass the file when sorting the songs: `python Scripts/3ds/move_to_3d.py song_list.txt`
 
-If you believe a sequence can be better adapted you can either contact the original author and collaborate on improving it to replace the current one, or submit it as a second AudioSeq and meta file with either a number appended to the end (Song Title-2.seq) or a short identifier such as your/your username's initials. (Song Title-dj.seq)
+The script lists the keys that have no converted song, which are the songs that could not be converted for the 3DS.
 
-You can also submit a true remix or original creation if you do not wish to recreate a piece of music entirely.
+# Converting the songs
+After the songs in `data/Music` change, convert them again with `python Scripts/3ds/convert_to_3d.py`. It reads both the `.ootrs` format and the older `.seq` and `.meta` format, and writes a `.bcseq` and `.cmeta` file for each song to `Converted/data/Music`.
 
-## Preferred locations
-When submitting a new song to the repository, you can use the fourth line of the `.meta` file to specify which locations would be appropriate for playing your song. You can do this by writing out a comma-separated list of music groups, such as: `HyruleField,Fields,Outdoors,Overworld`. **We are asking for all new submissions to include this line.** If you do not add it, another contributor may add it for you, using their best judgment.
- 
-There are four levels of specificity for music groups: **Exact**, **High**, **Mid**, and **Low**. (For fanfares, high and mid specificity are the same group.) In order for our default plando files to work, **you will need to include at least one group for each level of specificity.** Otherwise, your song may be excluded from consideration when shuffling music. (Some groups, such as `ChildDungeon`, may cover multiple levels of specificity.)
- 
-Some examples of valid location annotations:
-- `HyruleField,GerudoValley,Fields,Outdoors,Overworld` (for BGM)
-- `ChamberOfTheSages,ChildDungeon,CharacterTheme` (groups can be freely mixed and matched as long as all specificity levels are covered)
-- `ItemGet,HeartPieceGet,ItemFanfare,SuccessFanfare,EventFanfare` (for fanfares)
-- `DoorOfTime,SongOfTime,BigFanfare,UtilitySong,EventFanfare,SongFanfare` (for ocarina songs or other fanfares)
- 
-Some examples of invalid location annotations:
-- `HyruleField,Market,LonLonRanch` (not all specificity levels are covered)
-- `WindmillHut,SongOfStorms,Indoors,SongFanfare` (you should not mix BGM and fanfare locations - your song is either BGM or a fanfare/ocarina song, but not both)
- 
-We have created a standard list of default music groups that we are recommending for submissions to the repository, which can be found in [this spreadsheet](https://docs.google.com/spreadsheets/d/1EQWuVbshgFJ6wOlPSVCt5OcUpEQjaabOUi7aXCb84i0/edit?usp=sharing). We also have a web tool that will automatically tell you which music groups to include, based on the locations where you want your songs to play, which you can find [here](https://thesounddefense.github.io/musicgroups/).
+Some songs cannot be converted, and the script prints the reason for each one. These include songs that bring their own instrument bank (the 3DS can only use its own banks), and songs that use instruments, drums or synthesized waves that have no equivalent on the 3DS.
 
-# DMCA-Critical Sequences
-Until further notice Sequences that could trigger DMCA-Strikes on any platform wont be added to the repository.
-Copyright Critical Sequences you can share here : [Ganondorfs Organ](https://github.com/GanondorfsOrgan/Ganondorfs-Organ).
+The drum and sample tables in `convert_to_3d.py` are generated by `Scripts/3ds/generate_lookup_tables.py` from the Ocarina of Time Master Quest debug ROM and `QueenSound.bcsar`. The drum table was checked against Kewlan's [drum conversion table](https://github.com/Kewlan/OoT3D-Custom-Sequences/blob/main/Helper%20Tools/Drum%20Conversion%20Info.txt), but the ROM and `QueenSound.bcsar` decide every entry. The two differ for these N64 drum notes, the same way in all three banks Kewlan's table covers (`BANK_ORCHE`, `BANK_STAFF` and `BANK_STAFF2`). The generated keys play the drum's sample at its N64 pitch, and Kewlan's keys play it one semitone higher:
 
+| N64 note | Kewlan's 3DS key | Generated 3DS key |
+|---|---|---|
+| `dn1` | `dn1` | `ds1` |
+| `ds1` | `cs1` | `dn1` |
+| `en1` | `cn1` | `cs1` |
+| `fn1` | `bn0` | `cn1` |
+| `fs1` | `as0` | `bn0` |
+| `gn1` | `an0` | `as0` |
+| `gs1` | `gs0` | `an0` |
+| `an1` | `gn0` | `gs0` |
 
+# Requests and Submissions
+The songs are N64 sequences, so new songs and requests go to [OoT-Custom-Sequences](https://github.com/DaruniasJoy/OoT-Custom-Sequences), which explains how to submit them and which songs it accepts. This repository merges its songs and converts them.
+
+## Music groups
+The fourth line of a song's `.meta` file lists its music groups, such as `HyruleField,Fields,Outdoors,Overworld`. `move_to_3d.py` decides which 3DS folders a song goes into from these groups, and a song without them gets the folders of the `Overworld` group (background music) or the `EventFanfare` group (fanfares).
+
+The [OoT-Custom-Sequences README](https://github.com/DaruniasJoy/OoT-Custom-Sequences#preferred-locations) explains which music groups a new song should have.
+
+# Issues with Sequences
+If a converted song sounds wrong on the 3DS, or a song cannot be converted, [open an Issue](https://github.com/d4mation/OoT-3D-Custom-Sequences/issues/new) here. If the song is also wrong in the N64 Ocarina of Time Randomizer, such as a track that is too loud or too quiet, [open an Issue on OoT-Custom-Sequences](https://github.com/DaruniasJoy/OoT-Custom-Sequences/issues/new) or contact them in [Discord](https://discord.gg/EVpd499gkS).
 
 # Credits 
 * [Spreadsheet](https://docs.google.com/spreadsheets/d/1Yvgjex502cB_dVvvZm0a88aGL4WNFOm-5XvEbZLkWqI/edit)
@@ -115,3 +111,4 @@ Copyright Critical Sequences you can share here : [Ganondorfs Organ](https://git
 * Cuphat
 * Zunawe
 * Estacaco
+* Kewlan ([GitHub](https://github.com/Kewlan)): the custom music support in the Ocarina of Time 3D Randomizer, and the drum conversion table the 3DS drum table was checked against
