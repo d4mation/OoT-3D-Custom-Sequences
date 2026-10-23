@@ -204,6 +204,8 @@ class Sequence:
         self.tick = 0
         self.ended = False
         self.loop = None
+        # Every instrument a channel selects while the sequence plays (instr and fontinstr)
+        self.instruments = set()
         self.header_positions = {}
         # Addresses of the short note tables set by ldshortvelarr and ldshortgatearr, or None for the defaults.
         # The N64 game keeps a pointer into the sequence data and reads an entry when a note uses it.
@@ -461,8 +463,18 @@ class Sequence:
 
                 arguments = self.read_arguments( script, channel_argument_sizes[ command ] )
 
-                if command == 0xC1 or command == 0xEB: # instr, fontinstr (the font is checked before converting)
+                if command == 0xC6 or command == 0xEB: # font, fontinstr
+                    """
+                    The argument is an index into the sequence's soundfont list, counted from its end
+                    (AudioSeq_SequenceChannelProcessScript), and a converted song has only its own instrument set, which
+                    is index 0. Index 0 keeps the channel on that set.
+                    """
+                    if arguments[0] & 0xFF:
+                        raise UnsupportedSequence( 'a channel switches to soundfont ' + str( arguments[0] & 0xFF ) + ' of the sequence, and a converted song has only its own instrument set' )
+
+                if command == 0xC1 or command == 0xEB: # instr, fontinstr
                     channel.instrument = arguments[-1] & 0xFF
+                    self.instruments.add( channel.instrument )
                     self.emit( channel.index, 'prg ' + str( channel.instrument ) )
                 elif command == 0xC3: # short
                     channel.large_notes = False
@@ -867,8 +879,9 @@ def convert( seq_path, cseq_path, samples=None ):
     """
     Converts seq_path to cseq_path. samples is the sample_lookup entry for the sequence's instrument set.
 
-    Returns ( loop, None ) where loop is ( loop start tick, loop end tick ) or None for a song that ends, or
-    ( None, reason ) when the sequence cannot be converted.
+    Returns ( loop, None, instruments ), where loop is ( loop start tick, loop end tick ) or None for a song that ends
+    and instruments is every instrument a channel selected while playing, or ( None, reason, None ) when the sequence
+    cannot be converted.
     """
 
     with open( seq_path, 'rb' ) as file:
@@ -877,8 +890,8 @@ def convert( seq_path, cseq_path, samples=None ):
     try:
         sequence.run()
     except UnsupportedSequence as error:
-        return None, str( error )
+        return None, str( error ), None
 
     sequence.write_cseq( cseq_path )
 
-    return sequence.loop, None
+    return sequence.loop, None, sequence.instruments

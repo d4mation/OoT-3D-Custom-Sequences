@@ -1507,147 +1507,19 @@ import shutil
 import traceback
 import sys
 import re
-import xml.etree.ElementTree as ElementTree
 
 import bcseq
 import music_files
 import n64_to_cseq
 
-def load_abi_commands( abi_path ):
+def find_unmappable_instruments( instruments, instrument_set ):
     """
-    Reads the command lengths from a seq64 ABI file.
-
-    Returns { stype: { opcode: ( name, action, first opcode, [ ( datasrc, datalen, meaning ) ] ) } }, where stype 0 is
-    the sequence header, 1 is a channel and 2 is a note layer.
+    Returns a list of reasons a converted sequence does not have the right instruments on the 3DS. instruments is every
+    instrument its channels selected while n64_to_cseq.py ran it. An empty list means every one has a 3DS equivalent.
     """
 
-    tables = { 0: {}, 1: {}, 2: {} }
-
-    for command in ElementTree.parse( abi_path ).getroot().iter( 'command' ):
-
-        first = int( command.get( 'cmd' ) )
-        last = int( command.get( 'cmdend', first ) )
-        parameters = [ ( p.get( 'datasrc' ), int( p.get( 'datalen' ) or 0 ), p.get( 'meaning' ) ) for p in command.findall( 'parameter' ) ]
-
-        for stype, attribute in ( ( 0, 'validinseq' ), ( 1, 'validinchn' ), ( 2, 'validintrk' ) ):
-            if command.get( attribute ) == '1':
-                for opcode in range( first, last + 1 ):
-                    tables[ stype ].setdefault( opcode, ( command.get( 'name' ), command.get( 'action' ), first, parameters ) )
-
-    return tables
-
-abi_commands = None
-
-def find_used_instruments( seq_path ):
-    """
-    Follows the sequence header into every channel and note layer, and records the commands that pick an instrument:
-    instr (0xC1) and bankinstr (0xEB) in channels, and linst (0xC6) in note layers.
-
-    Returns a dict with:
-    - instruments: instrument indices set by instr or bankinstr
-    - banks: instrument sets switched to by bankinstr
-    - layer_instruments: instrument indices set by linst, which n64_to_cseq.py does not convert
-    - complete: False if part of the sequence could not be followed (dynamic tables, short notes or unknown commands)
-    """
-
-    global abi_commands
-
-    if abi_commands is None:
-        abi_commands = load_abi_commands( os.path.join( os.path.dirname( os.path.abspath( __file__ ) ), 'abi', '4b - Zelda community only.xml' ) )
-
-    with open( seq_path, 'rb' ) as file:
-        data = file.read()
-
-    result = { 'instruments': set(), 'banks': set(), 'layer_instruments': set(), 'complete': True }
-    todo = [ ( 0, 0 ) ]
-    seen = set()
-
-    while todo:
-
-        position, stype = todo.pop()
-
-        while position < len( data ) and ( position, stype ) not in seen:
-
-            seen.add( ( position, stype ) )
-
-            command = abi_commands[ stype ].get( data[ position ] )
-
-            if command is None:
-                result[ 'complete' ] = False
-                break
-
-            name, action, first, parameters = command
-            length = 1
-            values = []
-
-            for datasrc, datalen, meaning in parameters:
-                if datasrc == 'fixed':
-                    values.append( ( int.from_bytes( data[ position + length:position + length + datalen ], 'big' ), datalen, meaning ) )
-                    length += datalen
-                elif datasrc == 'variable':
-                    if data[ position + length ] & 0x80:
-                        values.append( ( ( data[ position + length ] & 0x7F ) << 8 | data[ position + length + 1 ], 2, meaning ) )
-                        length += 2
-                    else:
-                        values.append( ( data[ position + length ], 1, meaning ) )
-                        length += 1
-                elif datasrc == 'offset':
-                    values.append( ( data[ position ] - first, 0, meaning ) )
-
-            next_position = position + length
-            target = None
-
-            for value, datalen, meaning in values:
-                if meaning == 'Absolute Address':
-                    target = value
-                elif meaning == 'Relative Address':
-                    target = next_position + ( value - ( 1 << ( 8 * datalen ) ) if value >= 1 << ( 8 * datalen - 1 ) else value )
-
-            if stype == 1 and data[ position ] == 0xC1:
-                result[ 'instruments' ].add( values[0][0] )
-            elif stype == 1 and data[ position ] == 0xEB:
-                result[ 'banks' ].add( values[0][0] )
-                result[ 'instruments' ].add( values[1][0] )
-            elif stype == 2 and data[ position ] == 0xC6:
-                result[ 'layer_instruments' ].add( values[0][0] )
-
-            if action in ( 'Set Short Notes', 'Set Dyntable', 'Channel from Dyntable', 'Layer from Dyntable', 'Dyntable from Dyntable', 'Seq Hdr Call Table' ):
-                result[ 'complete' ] = False
-
-            if action == 'Ptr Channel Header' and target is not None:
-                todo.append( ( target, 1 ) )
-            elif action == 'Ptr Note Layer' and target is not None:
-                todo.append( ( target, 2 ) )
-            elif action in ( 'Call', 'Branch' ) and target is not None:
-                todo.append( ( target, stype ) )
-            elif action == 'Jump' and target is not None:
-                todo.append( ( target, stype ) )
-                break
-            elif action == 'End of Data':
-                break
-
-            position = next_position
-
-    return result
-
-def find_unmappable_instruments( seq_path, instrument_set ):
-    """
-    Returns a list of reasons this sequence cannot be converted with the right instruments. An empty list means every
-    instrument it uses has a 3DS equivalent.
-    """
-
-    use = find_used_instruments( seq_path )
+    use = { 'instruments': instruments }
     reasons = []
-
-    if not use[ 'complete' ]:
-        reasons.append( 'part of the sequence could not be read to check its instruments' )
-
-    other_banks = sorted( "0x{:02X}".format( bank ) for bank in use[ 'banks' ] if "0x{:02X}".format( bank ) != instrument_set )
-    if other_banks:
-        reasons.append( 'it switches to instrument sets ' + ', '.join( other_banks ) + ' with bankinstr' )
-
-    if use[ 'layer_instruments' ]:
-        reasons.append( 'it sets instruments ' + str( sorted( use[ 'layer_instruments' ] ) ) + ' in note layers, which n64_to_cseq.py does not convert' )
 
     synthesized = sorted( index for index in use[ 'instruments' ] if index >= 0x80 )
     if synthesized:
@@ -1953,20 +1825,6 @@ def convert_to_3d():
             failure_count = failure_count + 1
             continue
 
-        try:
-
-            unmappable = find_unmappable_instruments( seq_path, instrument_set )
-
-        except Exception as e:
-            print( root + '/' + seq_file + ': could not check the instruments: ' + str( e ), file=sys.stderr )
-            failure_count = failure_count + 1
-            continue
-
-        if unmappable:
-            print( root + '/' + seq_file + ': skipped, ' + '; '.join( unmappable ), file=sys.stderr )
-            skipped_count = skipped_count + 1
-            continue
-
         # Skip if already processed
         if not os.path.exists( './tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) ) :
 
@@ -1976,7 +1834,7 @@ def convert_to_3d():
 
             try:
 
-                loop_ticks, unsupported = n64_to_cseq.convert( seq_path, cseq_path, sample_lookup.get( instrument_set ) )
+                loop_ticks, unsupported, instruments = n64_to_cseq.convert( seq_path, cseq_path, sample_lookup.get( instrument_set ) )
 
             except Exception as e:
                 print( root + '/' + seq_file + ': seq_to_cseq failure: ' + repr( e ), file=sys.stderr )
@@ -1985,6 +1843,13 @@ def convert_to_3d():
 
             if unsupported:
                 print( root + '/' + seq_file + ': skipped, ' + unsupported, file=sys.stderr )
+                skipped_count = skipped_count + 1
+                continue
+
+            unmappable = find_unmappable_instruments( instruments, instrument_set )
+
+            if unmappable:
+                print( root + '/' + seq_file + ': skipped, ' + '; '.join( unmappable ), file=sys.stderr )
                 skipped_count = skipped_count + 1
                 continue
 
