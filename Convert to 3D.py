@@ -1479,6 +1479,12 @@ def add_loop_to_cseq( cseq_path, loop_start, loop_end ):
 
     return True
 
+"""
+Seconds each conversion tool may run for one song. midi2sseq never finishes on some MIDI files, such as one with no
+notes, and without a limit it stops the whole run.
+"""
+tool_timeout = 120
+
 def convert_to_3d():
 
     if not os.path.exists( 'data/Music' ):
@@ -1560,14 +1566,15 @@ def convert_to_3d():
                         './seq64_console.exe --abi=4b --in="' + linear_seq_path + '" --out="./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '"',
                         check=True,
                         text=True,
-                        capture_output=True
+                        capture_output=True,
+                        timeout=tool_timeout
                     )
 
                 except Exception as e:
                     print( root + '/' + seq_file )
                     print( 'seq_to_midi failure' )
-                    # FileNotFoundError and other errors from subprocess.run have no output attribute
-                    print( getattr( e, 'output', e ) )
+                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
+                    print( getattr( e, 'output', None ) or e )
                     failure_count = failure_count + 1
                     continue
 
@@ -1577,14 +1584,15 @@ def convert_to_3d():
                         './midi2sseq.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '"',
                         check=True,
                         text=True,
-                        capture_output=True
+                        capture_output=True,
+                        timeout=tool_timeout
                     )
 
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'midi_to_sseq failure' )
-                    # FileNotFoundError and other errors from subprocess.run have no output attribute
-                    print( getattr( e, 'output', e ) )
+                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
+                    print( getattr( e, 'output', None ) or e )
                     failure_count = failure_count + 1
                     continue
 
@@ -1595,14 +1603,15 @@ def convert_to_3d():
                         './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.sseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '"',
                         check=True,
                         text=True,
-                        capture_output=True
+                        capture_output=True,
+                        timeout=tool_timeout
                     )
 
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'sseq_to_cseq failure' )
-                    # FileNotFoundError and other errors from subprocess.run have no output attribute
-                    print( getattr( e, 'output', e ) )
+                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
+                    print( getattr( e, 'output', None ) or e )
                     failure_count = failure_count + 1
                     continue
 
@@ -1642,14 +1651,15 @@ def convert_to_3d():
                         './SequenceConvert.exe "./tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ) + '" "./tmp/' + root + '/' + seq_file.replace( '.seq', '.bcseq' ) + '"',
                         check=True,
                         text=True,
-                        capture_output=True
+                        capture_output=True,
+                        timeout=tool_timeout
                     )
 
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'cseq_to_bcseq failure' )
-                    # FileNotFoundError and other errors from subprocess.run have no output attribute
-                    print( getattr( e, 'output', e ) )
+                    # FileNotFoundError has no output attribute, and TimeoutExpired has output None
+                    print( getattr( e, 'output', None ) or e )
                     failure_count = failure_count + 1
                     continue
 
