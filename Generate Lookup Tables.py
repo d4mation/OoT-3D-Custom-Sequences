@@ -11,15 +11,16 @@ sample, and its layer waits for the sample to end, so n64_to_cseq.py needs the s
 
 Requires:
 - The OoT MQ debug ROM (the version the 3DS banks match), uncompressed, as used by Ship of Harkinian
-- The .sf2 files that caesar (https://github.com/kr3nshaw/caesar) exports from the 3DS QueenSound.bcsar, one per bank,
-  in <folder>/<BANK_NAME>/<BANK_NAME>.sf2
+- The 3DS sound archive, QueenSound.bcsar, from the OoT3D romfs/sound folder
 
-Usage: python "Generate Lookup Tables.py" <MQ debug ROM> <caesar output folder>
+Usage: python "Generate Lookup Tables.py" <MQ debug ROM> <QueenSound.bcsar>
 """
 
 import math
 import struct
 import sys
+
+import bcsar
 
 # From the decomp: baseroms/gc-eu-mq-dbg/config.yml and segments.csv
 MQ_DEBUG_DMADATA = 0x12F70
@@ -151,86 +152,6 @@ def read_n64_drums( rom, font_index ):
     return drums
 
 
-def read_sf2_drum_keys( path ):
-    """
-    Returns ( drum kit index, { key: ( sample length, pitch in semitones ) } ), or ( None, {} ) if the bank has no drum kit
-    """
-
-    data = open( path, 'rb' ).read()
-    chunks = {}
-
-    def walk( start, end ):
-        position = start
-        while position + 8 <= end:
-            chunk_id, size = struct.unpack_from( '<4sI', data, position )
-            if chunk_id == b'LIST':
-                walk( position + 12, position + 8 + size )
-            else:
-                chunks[ chunk_id ] = data[ position + 8:position + 8 + size ]
-            position += 8 + size + ( size & 1 )
-
-    walk( 12, len( data ) )
-
-    def records( name, layout ):
-        size = struct.calcsize( layout )
-        return [ struct.unpack_from( layout, chunks[ name ], i * size ) for i in range( len( chunks[ name ] ) // size ) ]
-
-    presets = records( b'phdr', '<20sHHHIII' )
-    preset_bags = records( b'pbag', '<HH' )
-    preset_generators = records( b'pgen', '<HH' )
-    instruments = records( b'inst', '<20sH' )
-    instrument_bags = records( b'ibag', '<HH' )
-    instrument_generators = records( b'igen', '<HH' )
-    samples = records( b'shdr', '<20sIIIIIbbHH' )
-
-    def zones( bags, generators, first, last ):
-        for bag in range( first, last ):
-            yield dict( generators[ bags[ bag ][0]:bags[ bag + 1 ][0] ] )
-
-    def signed( value ):
-        return value - 0x10000 if value >= 0x8000 else value
-
-    # The last record in phdr is the terminal record
-    for preset_index in range( len( presets ) - 1 ):
-
-        bank = presets[ preset_index ][2]
-
-        # Bank 128 is the percussion bank
-        if bank != 128:
-            continue
-
-        keys = {}
-
-        for preset_zone in zones( preset_bags, preset_generators, presets[ preset_index ][3], presets[ preset_index + 1 ][3] ):
-
-            # Generator 41 is the instrument
-            if 41 not in preset_zone:
-                continue
-
-            instrument = preset_zone[ 41 ]
-
-            for zone in zones( instrument_bags, instrument_generators, instruments[ instrument ][1], instruments[ instrument + 1 ][1] ):
-
-                # Generator 53 is the sample, 43 the key range, 58 the root key, 51 coarse tune and 52 fine tune
-                if 53 not in zone:
-                    continue
-
-                sample = samples[ zone[ 53 ] ]
-                start, end, rate, original_pitch, correction = sample[1], sample[2], sample[5], sample[6], sample[7]
-                key_range = zone.get( 43, 0x7F00 )
-                root = zone.get( 58, original_pitch )
-                coarse = signed( zone.get( 51, 0 ) )
-                fine = signed( zone.get( 52, 0 ) ) + correction
-
-                for key in range( key_range & 0xFF, ( key_range >> 8 ) + 1 ):
-                    pitch = math.log2( rate ) * 12 + ( key - root + coarse ) + fine / 100
-                    keys[ key ] = ( end - start, pitch )
-
-        return preset_index, keys
-
-    return None, {}
-
-
 def match_drums( n64_drums, keys ):
     """
     Returns { N64 drum index: 3DS key or None }. A drum matches the keys that use the sample closest to its length,
@@ -262,7 +183,7 @@ def main():
         return
 
     rom = open( sys.argv[1], 'rb' ).read()
-    folder = sys.argv[2]
+    archive = bcsar.SoundArchive( sys.argv[2] )
 
     # Imported here so that this script can be run from any folder
     sys.path.insert( 0, '.' )
@@ -283,7 +204,7 @@ def main():
         if not n64_drums:
             continue
 
-        kit_index, keys = read_sf2_drum_keys( folder + '/' + bank_names[ bank ] + '/' + bank_names[ bank ] + '.sf2' )
+        kit_index, keys = bcsar.drum_keys( archive, bank )
 
         print( "    # " + bank_names[ bank ] + ( '' if kit_index is not None else ' has no drum kit' ) )
         print( "    '" + instrument_set + "': {" )
