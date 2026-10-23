@@ -947,6 +947,154 @@ def find_loop_ticks( seq_path ):
 
     return None
 
+def signed_byte( value ):
+    value &= 0xFF
+    return value - 256 if value > 127 else value
+
+def fill_with_no_ops( data, start, end ):
+    """
+    Overwrites data[ start:end ] with sequence header commands that do nothing, keeping every other address in place:
+    stprel 0 (0xDE 0x00, 2 bytes), disablechan (0xD6, 3 bytes, a no-op in the game) and unreservenotes (0xF0, 1 byte).
+    """
+    length = end - start
+    filler = b''
+    if length % 2:
+        filler = b'\xD6\x00\x00' if length >= 3 else b'\xF0'
+    filler += b'\xDE\x00' * ( ( length - len( filler ) ) // 2 )
+    data[ start:end ] = filler
+
+def linearize_sequence_header( data ):
+    """
+    Some sequences (the Majora's Mask fanfares) run a small program in the sequence header before starting their
+    channels: they read a game I/O value (ldio), branch on it, and write the result into their own commands (sts). seq64
+    reads the header in a straight line and stops at the first jump, so it exports a MIDI file with no notes.
+
+    This runs the header the way OoT does, where every I/O value starts at -1, and rewrites it into that straight line:
+    sts writes are applied to the bytes they target, and the commands that only decide which path to take (I/O, Q
+    register math, branches and forward jumps), plus the bytes a taken branch skips, are replaced with commands that do
+    nothing. Addresses do not move. The jump back to an earlier position, which loops the song, is kept.
+
+    Returns the rewritten sequence, the original data if the header has no such program, or None if it uses something
+    this cannot follow (random values, channel tests, calls, loops, or writes outside the header path).
+    """
+
+    data = bytearray( data )
+    io = [ -1 ] * 8
+    q = 0
+    position = 0
+    executed = []
+    dynamic = []
+    skipped = []
+    writes = {}
+
+    for _ in range( 10000 ):
+
+        if position >= len( data ):
+            return None
+
+        opcode = data[ position ]
+
+        if opcode == 0xFD:
+            length = 3 if data[ position + 1 ] & 0x80 else 2
+        else:
+            length = seq_header_command_lengths.get( opcode )
+
+        if length is None:
+            return None
+
+        if any( start == position for start, _ in executed ):
+            # Reached a command a second time without a jump back, which means the header loops through a branch
+            return None
+
+        executed.append( ( position, length ) )
+        next_position = position + length
+        argument = data[ position + 1 ] if length > 1 else 0
+
+        if opcode in ( 0xCE, 0xFC, 0xF8, 0xF7, 0xCD ) or opcode <= 0x0F:
+            # rand, call, loop, loopend, dyncall and testchan depend on state this does not track. A header that uses
+            # them without any of the commands this rewrites is left as it is, which seq64 already reads correctly.
+            return None if dynamic else bytes( data )
+
+        if 0x80 <= opcode <= 0x8F: # ldio
+            index = opcode & 0x0F
+            q = io[ index ] if index < len( io ) else -1
+            if index < 2:
+                io[ index ] = -1
+            dynamic.append( position )
+        elif 0x70 <= opcode <= 0x7F: # stio
+            if ( opcode & 0x0F ) < len( io ):
+                io[ opcode & 0x0F ] = q
+            dynamic.append( position )
+        elif 0x50 <= opcode <= 0x5F: # subio
+            q = signed_byte( q - ( io[ opcode & 0x0F ] if ( opcode & 0x0F ) < len( io ) else -1 ) )
+            dynamic.append( position )
+        elif opcode == 0xCC: # ldi
+            q = signed_byte( argument )
+            dynamic.append( position )
+        elif opcode == 0xC8: # sub
+            q = signed_byte( q - argument )
+            dynamic.append( position )
+        elif opcode == 0xC9: # and
+            q = signed_byte( q & argument )
+            dynamic.append( position )
+        elif opcode == 0xC7: # sts: data[ address ] = Q + immediate
+            address = data[ position + 2 ] << 8 | data[ position + 3 ]
+            writes[ address ] = ( q + data[ position + 1 ] ) & 0xFF
+            data[ address ] = writes[ address ]
+            dynamic.append( position )
+        elif opcode in ( 0xF2, 0xF3, 0xF4, 0xF5, 0xF9, 0xFA, 0xFB ):
+
+            if opcode in ( 0xF2, 0xF3, 0xF4 ):
+                target = next_position + signed_byte( argument )
+            else:
+                target = data[ position + 1 ] << 8 | data[ position + 2 ]
+
+            taken = {
+                0xF2: q < 0, 0xF3: q == 0, 0xF4: True,
+                0xF5: q >= 0, 0xF9: q < 0, 0xFA: q == 0, 0xFB: True,
+            }[ opcode ]
+
+            if taken and target <= position:
+                # The jump back that loops the song
+                if opcode not in ( 0xF4, 0xFB ):
+                    return None
+                break
+
+            dynamic.append( position )
+
+            if taken:
+                skipped.append( ( next_position, target ) )
+                next_position = target
+
+        elif opcode == 0xFF:
+            break
+
+        position = next_position
+
+    else:
+        return None
+
+    if not dynamic:
+        return bytes( data )
+
+    kept = [ ( start, length ) for start, length in executed if start not in dynamic ]
+
+    for address in writes:
+        # A write must land inside a command that is kept, or it would be overwritten by the filler
+        if not any( start < address < start + length for start, length in kept ):
+            return None
+
+    for start in dynamic:
+        length = next( length for begin, length in executed if begin == start )
+        fill_with_no_ops( data, start, start + length )
+
+    for start, end in skipped:
+        if any( start <= begin < end for begin, length in kept ):
+            return None
+        fill_with_no_ops( data, start, end )
+
+    return bytes( data )
+
 def load_abi_commands( abi_path ):
     """
     Reads the command lengths from a seq64 ABI file.
@@ -1392,10 +1540,24 @@ def convert_to_3d():
 
                 os.makedirs( './tmp/' + root, exist_ok=True )
 
+                # seq64 and find_loop_ticks read this copy, with the sequence header rewritten into a straight line
+                linear_seq_path = './tmp/' + root + '/' + seq_file
+
+                with open( './' + root + '/' + seq_file, 'rb' ) as original:
+                    linear_seq = linearize_sequence_header( original.read() )
+
+                if linear_seq is None:
+                    print( root + '/' + seq_file + ': skipped, its sequence header uses commands that cannot be rewritten for seq64', file=sys.stderr )
+                    skipped_count = skipped_count + 1
+                    continue
+
+                with open( linear_seq_path, 'wb' ) as linear:
+                    linear.write( linear_seq )
+
                 try:
 
                     seq_to_midi = subprocess.run(
-                        './seq64_console.exe --abi=4b --in="./' + root + '/' + seq_file + '" --out="./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '"',
+                        './seq64_console.exe --abi=4b --in="' + linear_seq_path + '" --out="./tmp/' + root + '/' + seq_file.replace( '.seq', '.mid' ) + '"',
                         check=True,
                         text=True,
                         capture_output=True
@@ -1446,7 +1608,7 @@ def convert_to_3d():
 
                 try:
 
-                    loop_ticks = find_loop_ticks( './' + root + '/' + seq_file )
+                    loop_ticks = find_loop_ticks( linear_seq_path )
 
                     if loop_ticks and not add_loop_to_cseq( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cseq' ), *loop_ticks ):
                         print( root + '/' + seq_file + ': could not add the loop, this song will play once', file=sys.stderr )
