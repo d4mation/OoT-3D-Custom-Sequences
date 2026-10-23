@@ -88,7 +88,7 @@ class SoundArchive:
 
     def bank( self, bank_id ):
         """
-        Returns the Bank with this bank ID (the number Convert to 3D.py writes to .cmeta)
+        Returns the Bank with this bank ID (the number convert_to_3d.py writes to .cmeta)
         """
         entry_type, entry_offset = reference_table( self.data, self.bank_table )[ bank_id ]
         file_id = u32( self.data, self.bank_table + entry_offset )

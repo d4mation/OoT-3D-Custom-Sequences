@@ -1,5 +1,5 @@
 """
-Generates drum_note_lookup and sample_lookup for Convert to 3D.py.
+Generates drum_note_lookup and sample_lookup for convert_to_3d.py.
 
 drum_note_lookup: On the N64, each drum note plays one sample at a fixed pitch. On the 3DS, the drum kit is the last
 instrument in each bank, and each key plays a sample at a pitch that depends on the key. The 3DS kits put the drums on
@@ -13,7 +13,7 @@ Requires:
 - The OoT MQ debug ROM (the version the 3DS banks match), uncompressed, as used by Ship of Harkinian
 - The 3DS sound archive, QueenSound.bcsar, from the OoT3D romfs/sound folder
 
-Usage: python "Generate Lookup Tables.py" <MQ debug ROM> <QueenSound.bcsar>
+Usage, from the repository root: python Scripts/3ds/generate_lookup_tables.py <MQ debug ROM> <QueenSound.bcsar>
 """
 
 import math
@@ -21,6 +21,7 @@ import struct
 import sys
 
 import bcsar
+import convert_to_3d as convert
 
 # From the decomp: baseroms/gc-eu-mq-dbg/config.yml and segments.csv
 MQ_DEBUG_DMADATA = 0x12F70
@@ -44,7 +45,7 @@ LENGTH_TOLERANCE = 0.03
 
 """
 A drum may play up to this many semitones away from its N64 pitch. A song with a drum note that has no 3DS key within
-this distance is skipped by Convert to 3D.py.
+this distance is skipped by convert_to_3d.py.
 
 Many N64 drum pitches do not exist in the 3DS kits. In BANK_ORCHE, N64 drums 16 - 20 use one sample at rising pitches,
 but the 3DS keys for that sample (28 - 32) play falling pitches instead, so only drum 16 has an exact key. The 3DS game's
@@ -185,12 +186,6 @@ def main():
     rom = open( sys.argv[1], 'rb' ).read()
     archive = bcsar.SoundArchive( sys.argv[2] )
 
-    # Imported here so that this script can be run from any folder
-    sys.path.insert( 0, '.' )
-    import importlib.util
-    spec = importlib.util.spec_from_file_location( 'convert', './Convert to 3D.py' )
-    convert = importlib.util.module_from_spec( spec )
-    spec.loader.exec_module( convert )
 
     print( 'drum_note_lookup = {' )
 

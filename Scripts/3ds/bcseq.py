@@ -1,5 +1,5 @@
 """
-Assembles the .cseq text that n64_to_cseq.py and Convert to 3D.py write into a 3DS binary sequence (.bcseq).
+Assembles the .cseq text that n64_to_cseq.py and convert_to_3d.py write into a 3DS binary sequence (.bcseq).
 
 Only the commands those scripts write are supported. Commands are big endian, and lengths, waits and programs use a
 variable length number (7 bits per byte, high bit set on every byte but the last):

@@ -6,12 +6,12 @@ It runs the sequence the way the N64 game's sequence player does, following Audi
 AudioSeq_SequenceChannelProcessScript and AudioSeq_SeqLayerProcessScript in the OoT decomp
 (src/audio/internal/seqplayer.c), and writes what it plays.
 
-The loop, instrument and drum steps in Convert to 3D.py read this layout:
+The loop, instrument and drum steps in convert_to_3d.py read this layout:
 - one track per N64 channel, with track 0 also holding the tempo changes
 - notewait_off, so notes do not delay the commands after them
 - notes as "<note> <velocity>, <length>", with N64 note N written as key N + 21
 - channel instrument (prg), volume and pan, and sequence tempo
-- the N64 instrument numbers in prg, which Convert to 3D.py changes to the 3DS ones
+- the N64 instrument numbers in prg, which convert_to_3d.py changes to the 3DS ones
 
 Ticks are N64 sequence ticks (48 per quarter note), which is also the .cseq resolution.
 """
