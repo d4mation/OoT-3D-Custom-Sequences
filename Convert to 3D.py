@@ -558,7 +558,6 @@ instrument_list_lookup = {
 
 import os
 import subprocess
-import struct
 import shutil
 import traceback
 import fileinput
@@ -858,7 +857,9 @@ def convert_to_3d():
             
             except Exception as e:
 
-                print( e.output )
+                print( root + '/' + seq_file + ': could not read the .meta file: ' + str( e ), file=sys.stderr )
+                failure_count = failure_count + 1
+                continue
 
             if instrument_set not in instrument_list_lookup:
                 print( root + '/' + seq_file + ': instrument set ' + str( instrument_set ) + ' has no entry in instrument_list_lookup', file=sys.stderr )
@@ -882,7 +883,8 @@ def convert_to_3d():
                 except Exception as e:
                     print( root + '/' + seq_file )
                     print( 'seq_to_midi failure' )
-                    print( e.output )
+                    # FileNotFoundError and other errors from subprocess.run have no output attribute
+                    print( getattr( e, 'output', e ) )
                     failure_count = failure_count + 1
                     continue
 
@@ -898,7 +900,8 @@ def convert_to_3d():
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'midi_to_sseq failure' )
-                    print( e.output )
+                    # FileNotFoundError and other errors from subprocess.run have no output attribute
+                    print( getattr( e, 'output', e ) )
                     failure_count = failure_count + 1
                     continue
 
@@ -915,7 +918,8 @@ def convert_to_3d():
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'sseq_to_cseq failure' )
-                    print( e.output )
+                    # FileNotFoundError and other errors from subprocess.run have no output attribute
+                    print( getattr( e, 'output', e ) )
                     failure_count = failure_count + 1
                     continue
 
@@ -977,7 +981,8 @@ def convert_to_3d():
                 except Exception as e:
                     print( '.tmp/' + root + '/' + seq_file )
                     print( 'cseq_to_bcseq failure' )
-                    print( e.output )
+                    # FileNotFoundError and other errors from subprocess.run have no output attribute
+                    print( getattr( e, 'output', e ) )
                     failure_count = failure_count + 1
                     continue
 
@@ -987,11 +992,13 @@ def convert_to_3d():
 
             sound_bank = instrument_set_lookup.get( instrument_set )
 
-            if sound_bank:
+            # Bank 0 is valid, so only skip sets with no entry
+            if sound_bank is not None:
 
-                cmeta = open( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), 'wb' )
+                # The OoT3D Randomizer reads .cmeta as "key=value" text lines (source/custom_music/cmeta_interpreter.cpp)
+                cmeta = open( './tmp/' + root + '/' + seq_file.replace( '.seq', '.cmeta' ), 'w', encoding='utf-8' )
 
-                cmeta.write( struct.pack( '1B', sound_bank ) )
+                cmeta.write( 'banks=' + str( sound_bank ) + '\n' )
 
                 cmeta.close()
 
