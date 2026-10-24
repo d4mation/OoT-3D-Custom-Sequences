@@ -352,15 +352,17 @@ def assign_folder_names( converted ):
 
 def copy_song( bcseq_path, folder_name, directory ):
     """
-    Copies the song into its own folder, named folder_name, inside the category folder, as track.bcseq and track.cmeta.
+    Copies the song into its own folder, named folder_name, inside the category folder, as track.bcseq and track.cmeta,
+    so the songs of a category are listed by name.
 
-    For each .bcseq in a folder, the OoT3D Randomizer lists the folder again from the start to find the .cmeta with the
-    same name (MusicCategoryNode::AddExternalSeqDatas in source/custom_music/sequence_data.cpp), so a folder with n songs
-    takes about n * n directory entry reads. It also reads the folders inside a category folder whose names do not start
-    with "!" and adds their songs to that category. With one folder per song, each .cmeta search lists two files.
-
-    The randomizer only uses the file names to pair each .bcseq with its .cmeta, so the files have the same short name in
+    The OoT3D Randomizer reads the folders inside a category folder whose names do not start with "!" and adds their
+    songs to that category (MusicCategoryNode::AddExternalSeqDatas in source/custom_music/sequence_data.cpp). It only
+    uses the file names to pair each .bcseq with the .cmeta of the same name, so the files have the same short name in
     every folder.
+
+    This does not make the randomizer faster. For each .bcseq, it lists the folder again to find the .cmeta, but
+    libctru reads 32 directory entries per file system call, so the old layout of one folder per category made about
+    as many calls (about 41,000 for 6177 copies) as this one (about 44,000), where each song adds two folder opens.
     """
 
     # A folder whose name starts with "!" is read as a category instead

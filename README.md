@@ -11,7 +11,7 @@ The scripts need Python 3 and no other programs. Run them from the repository fo
 
    This copies each converted song into a `Custom Music` folder for each location of its most specific music groups, using the folder names the randomizer reads. See [Music groups](#music-groups) for how to use more locations.
 
-   Each copy is in its own folder, named after the song, as `track.bcseq` and `track.cmeta`. For each song, the randomizer searches the song's folder for its `.cmeta`, so this takes much less time than one folder that holds every song of a location.
+   Each copy is in its own folder, named after the song, as `track.bcseq` and `track.cmeta`, so the songs in a location are listed by name on the SD card. The randomizer adds the songs in these folders to the location that contains them. It does not generate faster with this layout. The time it spends reading the music folders depends on the number of song copies, which `--level` and a song list reduce.
 
    The script does not delete songs from an earlier run. Before running it again, delete the `!Background Music` and `!Melodies` folders in `Custom Music`.
 3. Copy the contents of the `Custom Music` folder into `SD:/OoT3DR/Custom Music/` on the SD card. If the SD card has songs from an earlier run, delete its `!Background Music` and `!Melodies` folders first. The randomizer also needs the game's sound archive, `QueenSound.bcsar`, in that folder. It is in the `romfs/sound` folder of a dump of the game.
