@@ -10,7 +10,11 @@ The scripts need Python 3 and no other programs. Run them from the repository fo
 2. Sort the songs into folders: `python Scripts/3ds/move_to_3d.py`
 
    This copies each converted song into a `Custom Music` folder for each location of its most specific music groups, using the folder names the randomizer reads. See [Music groups](#music-groups) for how to use more locations.
-3. Copy the contents of the `Custom Music` folder into `SD:/OoT3DR/Custom Music/` on the SD card. The randomizer also needs the game's sound archive, `QueenSound.bcsar`, in that folder. It is in the `romfs/sound` folder of a dump of the game.
+
+   Each copy is in its own folder, named after the song, as `track.bcseq` and `track.cmeta`. For each song, the randomizer searches the song's folder for its `.cmeta`, so this takes much less time than one folder that holds every song of a location.
+
+   The script does not delete songs from an earlier run. Before running it again, delete the `!Background Music` and `!Melodies` folders in `Custom Music`.
+3. Copy the contents of the `Custom Music` folder into `SD:/OoT3DR/Custom Music/` on the SD card. If the SD card has songs from an earlier run, delete its `!Background Music` and `!Melodies` folders first. The randomizer also needs the game's sound archive, `QueenSound.bcsar`, in that folder. It is in the `romfs/sound` folder of a dump of the game.
 4. Turn on the "Custom Music" option in the randomizer's cosmetic settings.
 
 # Choosing songs

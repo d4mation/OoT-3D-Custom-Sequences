@@ -318,29 +318,29 @@ def node_path( directory ):
     """
     return '/'.join( '!' + part for part in directory.split( '/' ) )
 
-def ascii_file_name( song_name ):
+def ascii_folder_name( song_name ):
     """
-    Returns the song name as an ASCII file name. The OoT3D Randomizer opens sequence files with
-    fsMakePath( PATH_ASCII, ... ) (source/custom_music/ctr_binary_data.cpp), so a file name with other characters would
-    not be found. Accents are dropped, slashes become "-", and other characters a file name cannot have are removed.
+    Returns the song name as an ASCII folder name. The OoT3D Randomizer opens sequence files with
+    fsMakePath( PATH_ASCII, ... ) (source/custom_music/ctr_binary_data.cpp), so a path with other characters would
+    not be found. Accents are dropped, slashes become "-", and other characters a folder name cannot have are removed.
     """
     text = unicodedata.normalize( 'NFKD', song_name )
     text = ''.join( character for character in text if not unicodedata.combining( character ) )
     text = re.sub( r'[/\\∕]', '-', text )
     text = ''.join( character for character in text if character.isascii() and character.isprintable() and character not in ':*?"<>|' )
-    # FAT does not allow a file name to end with a dot or a space
+    # FAT does not allow a folder name to end with a dot or a space
     return re.sub( r'\s+', ' ', text ).strip().rstrip( '. ' ) or 'Song'
 
-def assign_file_names( converted ):
+def assign_folder_names( converted ):
     """
-    Returns { converted .bcseq path: file name without extension }. Songs from different games often share a file name
-    (such as Main Theme.bcseq), so each song is named by its key, the first line of its .meta file. Songs whose keys give
-    the same file name get " 2", " 3", ... in path order.
+    Returns { converted .bcseq path: folder name }. Songs from different games often share a file name (such as Main
+    Theme.bcseq), so each song's folder is named by its key, the first line of its .meta file. Songs whose keys give
+    the same folder name get " 2", " 3", ... in path order.
     """
     names = {}
     used = set()
     for path, song_name in sorted( converted ):
-        base = ascii_file_name( song_name )
+        base = ascii_folder_name( song_name )
         name = base
         number = 2
         while name.lower() in used:
@@ -350,19 +350,31 @@ def assign_file_names( converted ):
         names[ path ] = name
     return names
 
-def copy_song( bcseq_path, file_name, directory ):
+def copy_song( bcseq_path, folder_name, directory ):
+    """
+    Copies the song into its own folder, named folder_name, inside the category folder, as track.bcseq and track.cmeta.
 
-    destination = './Custom Music/' + node_path( directory )
+    For each .bcseq in a folder, the OoT3D Randomizer lists the folder again from the start to find the .cmeta with the
+    same name (MusicCategoryNode::AddExternalSeqDatas in source/custom_music/sequence_data.cpp), so a folder with n songs
+    takes about n * n directory entry reads. It also reads the folders inside a category folder whose names do not start
+    with "!" and adds their songs to that category. With one folder per song, each .cmeta search lists two files.
+
+    The randomizer only uses the file names to pair each .bcseq with its .cmeta, so the files have the same short name in
+    every folder.
+    """
+
+    # A folder whose name starts with "!" is read as a category instead
+    destination = './Custom Music/' + node_path( directory ) + '/' + folder_name.lstrip( '!' )
 
     os.makedirs( destination, exist_ok=True )
 
-    shutil.copy( bcseq_path, destination + '/' + file_name + '.bcseq' )
+    shutil.copy( bcseq_path, destination + '/track.bcseq' )
 
     cmeta_path = bcseq_path[:-len( '.bcseq' )] + '.cmeta'
 
     if os.path.exists( cmeta_path ) :
 
-        shutil.copy( cmeta_path, destination + '/' + file_name + '.cmeta' )
+        shutil.copy( cmeta_path, destination + '/track.cmeta' )
 
 def read_song_list( path ):
     """
@@ -485,7 +497,7 @@ def move_to_3d( song_list_path=None, broadest_level='exact' ):
 
             to_copy.append( ( root + '/' + seq_file, song_name, seq_type, seq_groups ) )
 
-    file_names = assign_file_names( [ ( bcseq_path, song_name ) for bcseq_path, song_name, seq_type, seq_groups in to_copy ] )
+    folder_names = assign_folder_names( [ ( bcseq_path, song_name ) for bcseq_path, song_name, seq_type, seq_groups in to_copy ] )
 
     # Songs with no groups that were not copied because broadest_level is not 'low'
     skipped_without_groups = 0
@@ -521,7 +533,7 @@ def move_to_3d( song_list_path=None, broadest_level='exact' ):
         # Copy the generated files into the correct locations
         for directory in directories:
 
-            copy_song( bcseq_path, file_names[ bcseq_path ], directory )
+            copy_song( bcseq_path, folder_names[ bcseq_path ], directory )
 
     if skipped_without_groups:
         print( str( skipped_without_groups ) + ' songs with no groups were not copied. Use --level low to copy them.' )
