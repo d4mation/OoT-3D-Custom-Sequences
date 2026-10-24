@@ -298,6 +298,10 @@ location_lookup = {
     }
 }
 
+# The levels of location_lookup, from the most specific to the broadest
+levels = [ 'exact', 'high', 'medium', 'low' ]
+
+import argparse
 import os
 import re
 import shutil
@@ -378,10 +382,58 @@ def read_song_list( path ):
 
     return keys
 
-def move_to_3d( song_list_path=None ):
+def song_directories( groups, broadest_level='exact' ):
+    """
+    Returns the Custom Music folders for a song's groups.
+
+    The folders come from the song's most specific level: its exact groups if it has any, otherwise its high groups,
+    then its medium groups, then its low groups. A group whose folders the 3DS does not have, such as SunsSong, does not
+    count. With broadest_level, the folders of the levels from that most specific level through broadest_level are
+    used together, so 'low' uses every level. A song whose most specific level is broader than broadest_level uses
+    only that level.
+    """
+
+    directories_by_level = []
+
+    for level in levels:
+
+        directories = []
+
+        for group in groups:
+
+            group_directories = location_lookup[ level ].get( group )
+
+            if isinstance( group_directories, str ):
+                group_directories = [ group_directories ]
+
+            for directory in group_directories or []:
+
+                if directory not in directories:
+                    directories.append( directory )
+
+        directories_by_level.append( directories )
+
+    most_specific = next( ( index for index, directories in enumerate( directories_by_level ) if directories ), None )
+
+    if most_specific is None:
+        return []
+
+    broadest = max( most_specific, levels.index( broadest_level ) )
+    result = []
+
+    for directories in directories_by_level[ most_specific:broadest + 1 ]:
+
+        for directory in directories:
+
+            if directory not in result:
+                result.append( directory )
+
+    return result
+
+def move_to_3d( song_list_path=None, broadest_level='exact' ):
     """
     Copies the converted songs into the Custom Music folders of their groups. With song_list_path, only the songs whose
-    keys are in that song list are copied.
+    keys are in that song list are copied. broadest_level is passed to song_directories().
     """
 
     if not os.path.exists( 'Converted/data/Music' ):
@@ -435,10 +487,18 @@ def move_to_3d( song_list_path=None ):
 
     file_names = assign_file_names( [ ( bcseq_path, song_name ) for bcseq_path, song_name, seq_type, seq_groups in to_copy ] )
 
+    # Songs with no groups that were not copied because broadest_level is not 'low'
+    skipped_without_groups = 0
+
     for bcseq_path, song_name, seq_type, seq_groups in to_copy:
 
-        # Try to set some defaults, just in case
-        if not seq_groups: 
+        # A song with no groups gets a low group as its default, so it is only copied when the low level is used
+        if not seq_groups:
+
+            if broadest_level != 'low':
+
+                skipped_without_groups += 1
+                continue
 
             if seq_type == 'bgm':
 
@@ -448,23 +508,23 @@ def move_to_3d( song_list_path=None ):
 
                 seq_groups = [ 'EventFanfare' ]
 
-        # Copy the generated files into the correct locations
         for group in seq_groups:
-
-            low = location_lookup.get( 'low' ).get( group )
-            medium = location_lookup.get( 'medium' ).get( group )
-            high = location_lookup.get( 'high' ).get( group )
-            exact = location_lookup.get( 'exact' ).get( group )
 
             if not any( group in level for level in location_lookup.values() ):
                 print( bcseq_path + ': unknown group ' + group, file=sys.stderr )
 
-            if isinstance( exact, str ):
-                exact = [ exact ]
+        directories = song_directories( seq_groups, broadest_level )
 
-            for directory in ( low or [] ) + ( medium or [] ) + ( high or [] ) + ( exact or [] ):
+        if not directories:
+            print( bcseq_path + ': no 3DS folder for the groups ' + ','.join( seq_groups ), file=sys.stderr )
 
-                copy_song( bcseq_path, file_names[ bcseq_path ], directory )
+        # Copy the generated files into the correct locations
+        for directory in directories:
+
+            copy_song( bcseq_path, file_names[ bcseq_path ], directory )
+
+    if skipped_without_groups:
+        print( str( skipped_without_groups ) + ' songs with no groups were not copied. Use --level low to copy them.' )
 
     if keys is not None:
 
@@ -478,10 +538,14 @@ def move_to_3d( song_list_path=None ):
 
 def main():
 
-    # Usage, from the repository root: python Scripts/3ds/move_to_3d.py [song list]
-    song_list_path = sys.argv[1] if len( sys.argv ) > 1 else None
+    # Usage, from the repository root: python Scripts/3ds/move_to_3d.py [--level exact|high|medium|low] [song list]
+    parser = argparse.ArgumentParser( description='Copies the converted songs into the Custom Music folders of their groups.' )
+    parser.add_argument( 'song_list', nargs='?', help='a song list from Generate Song List.py. Only the songs with a key line in it are copied.' )
+    parser.add_argument( '--level', choices=levels, default='exact',
+                         help="the broadest group level to use. The default, exact, uses only each song's most specific groups. low uses all of them, and also copies the songs with no groups." )
+    arguments = parser.parse_args()
 
-    moved_to_3d = move_to_3d( song_list_path )
+    moved_to_3d = move_to_3d( arguments.song_list, arguments.level )
 
     if moved_to_3d:
         print("All songs have been organized for Oot3D Rando")
