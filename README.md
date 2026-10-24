@@ -14,25 +14,20 @@ The scripts need Python 3 and no other programs. Run them from the repository fo
 4. Turn on the "Custom Music" option in the randomizer's cosmetic settings.
 
 # Choosing songs
-To use only some of the songs, create a song list with `python "Scripts/Generate Song List.py"`. It writes `song_list.txt`, with every song sorted by folder and the key that identifies it:
+To use only some of the songs, create a song list with `python "Scripts/Generate Song List.py"`. It writes `song_list.txt`, with two lines for each song: its file name in `data/Music` without the extension, and the key that identifies it. The songs are not grouped by game or sorted, so search the file for the songs you are looking for:
 
 ```txt
-- Music
-    - Kingdom Hearts Series
-        - Kingdom Hearts
-             key: Kingdom Hearts - Dearly Beloved
-             key: Kingdom Hearts - Gummi Ship #1
-             key: Kingdom Hearts - Hollow Bastion
-        - Kingdom Hearts 2
-             key: Kingdom Hearts 2 Final Mix - Sora's Theme
-             key: Kingdom Hearts II - Sinister Sundown
-    - StarTropics
-         key: StarTropics - Miracola Village
+- Restaurant District
+    key: Spongebob : The Yellow Avenger - Restaurant District
+- Final Boss
+    key: Mega Man 6 - Final Boss
+- Title Screen
+    key: Mega Man 6 - Title Screen
 ...
 ...
 ```
 
-Delete the `key:` lines of the songs you do not want, and pass the file when sorting the songs: `python Scripts/3ds/move_to_3d.py song_list.txt`
+Delete the `key:` lines of the songs you do not want, and pass the file when sorting the songs: `python Scripts/3ds/move_to_3d.py song_list.txt`. Only the `key:` lines are read, so the file name lines can stay.
 
 The script lists the keys that have no converted song, which are the songs that could not be converted for the 3DS.
 
